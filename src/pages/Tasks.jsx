@@ -1,160 +1,322 @@
-import React from "react";
-import { useState } from "react";
-import { Page, SectionTitle } from "./Dashboard";
+import React, { useEffect, useState } from "react";
+import { Page, SectionTitle, Empty } from "./Dashboard";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
-const groups = [
-  [
-    "Overdue",
-    [
-      [
-        "Follow up on quote — Lumen Studio",
-        "Venue hire · HK$38,000 · quote sent 6 days ago · Cynthia Mok",
-        "Auto-created by “quote sent → follow up in 3 days” · overdue 3 days",
-        "Log call",
-      ],
-      [
-        "Issue deposit invoice — Harbour Pictures",
-        "Photoshoot · HK$5,750 deposit · agreement signed yesterday",
-        "Auto-created on signature · Xero draft prepared",
-        "Send invoice",
-      ],
-      [
-        "Re-engage — Delphine Roux",
-        "Coworking · HK$3,800/mo · no reply since 3 Sep",
-        "Flagged inactive · Tier A threshold is 5 days",
-        "Send template",
-      ],
-    ],
-  ],
-  [
-    "Today",
-    [
-      [
-        "Viewing — Meridian Legal, 15:30",
-        "Private office 1204B · Adeline Cheung + Nathan Sze",
-        "15:30",
-        "Confirm",
-      ],
-      [
-        "Confirm trial day — Priya Raghunathan",
-        "Coworking · trial booked for Thursday",
-        "14:00",
-        "Confirm",
-      ],
-      [
-        "Call Saltwater about renewal",
-        "Private office · renews 18 Oct · 60-day reminder",
-        "17:00",
-        "Call",
-      ],
-      [
-        "Reply to Kenneth Yau on WhatsApp",
-        "Day pass · Saturday availability question",
-        "Anytime",
-        "Reply",
-      ],
-    ],
-  ],
-  [
-    "Completed today",
-    [
-      ["Send agreement — Novo Health Ltd", "Agreement sent", "Done", ""],
-      [
-        "Post-event review request — Aurora Beauty launch",
-        "Review request sent",
-        "Done",
-        "",
-      ],
-      [
-        "Confirm meeting room — Fiona Ng, 24 Oct",
-        "Calendar confirmed",
-        "Done",
-        "",
-      ],
-    ],
-  ],
-];
+import { useAuth } from "../auth/AuthContext";
+
 export default function Tasks() {
-  const [done, setDone] = useState([]),
-    [modal, setModal] = useState(null);
+  const { request, user } = useAuth();
+
+  const [tasks, setTasks] = useState([]);
+  const [modal, setModal] = useState(null);
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    dueAt: "",
+    priority: "medium",
+  });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function load() {
+    try {
+      setError("");
+
+      const r = await request("/tasks", {
+        query: {
+          limit: 100,
+        },
+      });
+
+      setTasks(r.data?.tasks || r.data?.items || []);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function create() {
+    if (!form.title.trim()) {
+      setError("Task title is required.");
+      return;
+    }
+
+    if (!form.dueAt) {
+      setError("Due date is required.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+
+    try {
+      const r = await request("/tasks", {
+        method: "POST",
+        body: {
+          ...form,
+          dueAt: new Date(form.dueAt).toISOString(),
+          assignedTo: user?._id,
+        },
+      });
+
+      setTasks((current) => [r.data, ...current]);
+
+      setModal(null);
+
+      setForm({
+        title: "",
+        description: "",
+        dueAt: "",
+        priority: "medium",
+      });
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function action(task, type) {
+    try {
+      setError("");
+
+      const body =
+        type === "complete"
+          ? {}
+          : {
+              snoozedUntil: new Date(
+                Date.now() + 24 * 60 * 60 * 1000,
+              ).toISOString(),
+            };
+
+      const r = await request(`/tasks/${task._id}/${type}`, {
+        method: "PATCH",
+        body,
+      });
+
+      setTasks((current) =>
+        current.map((item) => (item._id === task._id ? r.data : item)),
+      );
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function removeTask(task) {
+    if (!window.confirm("Delete this task?")) {
+      return;
+    }
+
+    try {
+      setError("");
+
+      await request(`/tasks/${task._id}`, {
+        method: "DELETE",
+      });
+
+      setTasks((current) => current.filter((item) => item._id !== task._id));
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  const groups = ["overdue", "today", "upcoming", "completed"]
+    .map((key) => {
+      return [
+        key,
+        tasks.filter((task) => {
+          const date = new Date(task.dueAt);
+          const now = new Date();
+
+          if (key === "completed") {
+            return task.status === "completed";
+          }
+
+          if (task.status === "completed") {
+            return false;
+          }
+
+          if (key === "overdue") {
+            return date < now;
+          }
+
+          if (key === "today") {
+            return date.toDateString() === now.toDateString();
+          }
+
+          return date > now && date.toDateString() !== now.toDateString();
+        }),
+      ];
+    })
+    .filter(([, items]) => items.length > 0);
+
   return (
     <Page
       title="Tasks"
-      kicker="Follow-ups · 3 overdue"
+      kicker={`${tasks.filter((task) => task.status !== "completed").length} active tasks`}
       actions={
-        <button className="btn primary" onClick={() => setModal("New task")}>
+        <button
+          className="btn primary"
+          onClick={() => {
+            setError("");
+            setModal("New task");
+          }}
+        >
           New task
         </button>
       }
     >
-      <div className="notice">
-        <b>Every task below was created by a rule, not by hand.</b>
-        <span>
-          Automations keep the queue moving; the operator only decides what
-          needs attention.
-        </span>
-      </div>
-      {groups.map(([name, items]) => (
-        <section className="task-group" key={name}>
-          <SectionTitle title={name} />
-          {items.map(([title, sub, meta, action]) => (
-            <div
-              className={`task-card ${done.includes(title) ? "complete" : ""}`}
-              key={title}
-            >
-              <div>
-                <div className="task-title">
-                  <b>{title}</b>
-                  <Badge tone={name === "Overdue" ? "warn" : ""}>{meta}</Badge>
+      {error && (
+        <div className="notice error">
+          <b>Tasks</b>
+          <span>{error}</span>
+        </div>
+      )}
+
+      {groups.length === 0 ? (
+        <Empty text="No tasks found." />
+      ) : (
+        groups.map(([name, items]) => (
+          <section className="task-group" key={name}>
+            <SectionTitle title={name[0].toUpperCase() + name.slice(1)} />
+
+            {items.map((task) => (
+              <div
+                className={`task-card ${
+                  task.status === "completed" ? "complete" : ""
+                }`}
+                key={task._id}
+              >
+                <div>
+                  <div className="task-title">
+                    <b>{task.title}</b>
+
+                    <Badge tone={name === "overdue" ? "warn" : ""}>
+                      {task.priority}
+                    </Badge>
+                  </div>
+
+                  <span>
+                    {task.description || "No description"} · due{" "}
+                    {new Date(task.dueAt).toLocaleString()}
+                  </span>
                 </div>
-                <span>{sub}</span>
-              </div>
-              {action && (
+
                 <div className="task-actions">
-                  <button
-                    className="btn ghost"
-                    onClick={() => setDone((d) => [...d, title])}
-                  >
-                    {done.includes(title) ? "Completed" : action}
-                  </button>
-                  {name === "Overdue" && (
-                    <button
-                      className="btn ghost"
-                      onClick={() => setModal("Snooze task")}
-                    >
-                      Snooze
-                    </button>
+                  {task.status !== "completed" && (
+                    <>
+                      <button
+                        className="btn ghost"
+                        onClick={() => action(task, "complete")}
+                      >
+                        Complete
+                      </button>
+
+                      <button
+                        className="btn ghost"
+                        onClick={() => action(task, "snooze")}
+                      >
+                        Snooze
+                      </button>
+
+                      <button
+                        className="btn ghost"
+                        onClick={() => removeTask(task)}
+                      >
+                        Delete
+                      </button>
+                    </>
                   )}
                 </div>
-              )}
-            </div>
-          ))}
-        </section>
-      ))}
+              </div>
+            ))}
+          </section>
+        ))
+      )}
+
       {modal && (
         <Modal
-          title={modal}
+          title="New task"
           onClose={() => setModal(null)}
           actions={
             <>
               <button className="btn ghost" onClick={() => setModal(null)}>
                 Cancel
               </button>
-              <button className="btn primary" onClick={() => setModal(null)}>
-                Save
+
+              <button
+                className="btn primary"
+                disabled={saving}
+                onClick={create}
+              >
+                {saving ? "Saving…" : "Create task"}
               </button>
             </>
           }
         >
           <label>
             Task title
-            <input placeholder="Follow up with client" />
+            <input
+              value={form.title}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  title: e.target.value,
+                })
+              }
+              placeholder="Follow up with client"
+            />
           </label>
+
           <label>
-            Due date
-            <input type="date" />
+            Description
+            <textarea
+              value={form.description}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  description: e.target.value,
+                })
+              }
+            />
           </label>
+
+          <div className="form-grid">
+            <label>
+              Due
+              <input
+                type="datetime-local"
+                value={form.dueAt}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    dueAt: e.target.value,
+                  })
+                }
+              />
+            </label>
+
+            <label>
+              Priority
+              <select
+                value={form.priority}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    priority: e.target.value,
+                  })
+                }
+              >
+                <option value="low">low</option>
+                <option value="medium">medium</option>
+                <option value="high">high</option>
+                <option value="urgent">urgent</option>
+              </select>
+            </label>
+          </div>
         </Modal>
       )}
     </Page>

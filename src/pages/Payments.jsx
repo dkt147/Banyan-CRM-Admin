@@ -3,25 +3,29 @@ import { Page, Empty } from "./Dashboard";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import { useAuth } from "../auth/AuthContext";
-export default function Agreements() {
+export default function Payments() {
   const { request } = useAuth();
   const [rows, setRows] = useState([]),
+    [invoices, setInvoices] = useState([]),
     [modal, setModal] = useState(false),
     [form, setForm] = useState({
-      name: "",
+      invoiceId: "",
       amount: 0,
-      currency: "HKD",
-      status: "draft",
-      provider: "docusign",
-      fileUrl: "",
+      provider: "stripe",
+      externalId: "",
+      status: "succeeded",
     }),
     [error, setError] = useState("");
   async function load() {
     try {
-      const r = await request("/agreements", {
-        query: { limit: 100, sort: "createdAt", order: "desc" },
-      });
-      setRows(r.data?.items || []);
+      const [p, i] = await Promise.all([
+        request("/payments", {
+          query: { limit: 100, sort: "createdAt", order: "desc" },
+        }),
+        request("/invoices", { query: { limit: 100 } }),
+      ]);
+      setRows(p.data?.items || []);
+      setInvoices(i.data?.items || []);
     } catch (e) {
       setError(e.message);
     }
@@ -31,7 +35,7 @@ export default function Agreements() {
   }, []);
   async function create() {
     try {
-      await request("/agreements", {
+      await request("/payments", {
         method: "POST",
         body: { ...form, amount: Number(form.amount) || 0 },
       });
@@ -43,77 +47,56 @@ export default function Agreements() {
   }
   return (
     <Page
-      title="Agreements"
-      kicker="Agreement records and signature status"
+      title="Payments"
+      kicker="Payment records linked to invoices"
       actions={
         <button className="btn primary" onClick={() => setModal(true)}>
-          Send for signature
+          Record payment
         </button>
       }
     >
-      {error && (
-        <div className="notice error">
-          <b>Agreements</b>
-          <span>{error}</span>
-        </div>
-      )}
-      <div className="metrics five">
-        <MetricX
-          label="Awaiting signature"
-          value={
-            rows.filter((x) => ["draft", "sent", "viewed"].includes(x.status))
-              .length
-          }
-        />
-        <MetricX
-          label="Signed"
-          value={rows.filter((x) => x.status === "signed").length}
-        />
-        <MetricX
-          label="Declined"
-          value={rows.filter((x) => x.status === "declined").length}
-        />
-        <MetricX label="Total" value={rows.length} />
-      </div>
+      {error && <div className="notice error">{error}</div>}
       <section className="panel table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Document</th>
+              <th>Invoice</th>
               <th>Provider</th>
               <th>Amount</th>
               <th>Status</th>
-              <th>Sent</th>
+              <th>Paid</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r._id}>
+            {rows.map((p) => (
+              <tr key={p._id}>
                 <td>
-                  <b>{r.name}</b>
-                  <span>{r.fileUrl || "No file URL"}</span>
+                  {p.invoiceId?.invoiceNumber ||
+                    p.invoiceId?._id?.slice(-8) ||
+                    "—"}
                 </td>
-                <td>{r.provider}</td>
-                <td>HK${Number(r.amount || 0).toLocaleString()}</td>
+                <td>{p.provider}</td>
                 <td>
-                  <Badge tone={r.status === "declined" ? "warn" : ""}>
-                    {r.status}
+                  {p.currency || "HKD"} {Number(p.amount || 0).toLocaleString()}
+                </td>
+                <td>
+                  <Badge tone={p.status === "failed" ? "warn" : ""}>
+                    {p.status}
                   </Badge>
                 </td>
                 <td>
-                  {r.sentAt ? new Date(r.sentAt).toLocaleString() : "—"}{" "}
+                  {p.paidAt ? new Date(p.paidAt).toLocaleString() : "—"}{" "}
                   <button
                     className="btn ghost"
                     onClick={async () => {
                       try {
-                        await request(`/agreements/${r._id}`, {
+                        await request(`/payments/${p._id}`, {
                           method: "PATCH",
                           body: {
-                            status: r.status === "signed" ? "draft" : "sent",
-                            sentAt:
-                              r.status === "draft"
-                                ? new Date().toISOString()
-                                : r.sentAt,
+                            status:
+                              p.status === "succeeded"
+                                ? "refunded"
+                                : "succeeded",
                           },
                         });
                         load();
@@ -127,9 +110,9 @@ export default function Agreements() {
                   <button
                     className="btn ghost"
                     onClick={async () => {
-                      if (!confirm("Delete agreement?")) return;
+                      if (!confirm("Delete payment?")) return;
                       try {
-                        await request(`/agreements/${r._id}`, {
+                        await request(`/payments/${p._id}`, {
                           method: "DELETE",
                         });
                         load();
@@ -145,11 +128,11 @@ export default function Agreements() {
             ))}
           </tbody>
         </table>
-        {rows.length === 0 && <Empty text="No agreements." />}
+        {rows.length === 0 && <Empty text="No payment records." />}
       </section>
       {modal && (
         <Modal
-          title="Create agreement"
+          title="Record payment"
           onClose={() => setModal(false)}
           actions={
             <>
@@ -157,17 +140,24 @@ export default function Agreements() {
                 Cancel
               </button>
               <button className="btn primary" onClick={create}>
-                Create agreement
+                Save payment
               </button>
             </>
           }
         >
           <label>
-            Name
-            <input
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-            />
+            Invoice
+            <select
+              value={form.invoiceId}
+              onChange={(e) => setForm({ ...form, invoiceId: e.target.value })}
+            >
+              <option value="">Select invoice</option>
+              {invoices.map((i) => (
+                <option key={i._id} value={i._id}>
+                  {i.invoiceNumber || i._id.slice(-8)} · {i.total}
+                </option>
+              ))}
+            </select>
           </label>
           <div className="form-grid">
             <label>
@@ -179,23 +169,35 @@ export default function Agreements() {
               />
             </label>
             <label>
-              File URL
+              Provider
               <input
-                value={form.fileUrl}
-                onChange={(e) => setForm({ ...form, fileUrl: e.target.value })}
+                value={form.provider}
+                onChange={(e) => setForm({ ...form, provider: e.target.value })}
               />
+            </label>
+            <label>
+              External ID
+              <input
+                value={form.externalId}
+                onChange={(e) =>
+                  setForm({ ...form, externalId: e.target.value })
+                }
+              />
+            </label>
+            <label>
+              Status
+              <select
+                value={form.status}
+                onChange={(e) => setForm({ ...form, status: e.target.value })}
+              >
+                {["pending", "succeeded", "failed", "refunded"].map((x) => (
+                  <option key={x}>{x}</option>
+                ))}
+              </select>
             </label>
           </div>
         </Modal>
       )}
     </Page>
-  );
-}
-function MetricX({ label, value }) {
-  return (
-    <div className="metric">
-      <span className="eyebrow">{label}</span>
-      <strong>{value}</strong>
-    </div>
   );
 }

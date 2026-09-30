@@ -1,99 +1,190 @@
-import React from "react";
-import { useState } from "react";
-import { Page, SectionTitle } from "./Dashboard";
+import React, { useEffect, useState } from "react";
+import { Page, SectionTitle, Empty } from "./Dashboard";
 import Badge from "../components/Badge";
-const threads = [
-  [
-    "Meridian Legal",
-    "08:52",
-    "Re: quote for four desks",
-    "Adeline: a few questions before we sign…",
-  ],
-  ["Cynthia Mok", "08:31", "Can we hold the venue for 24 Oct evening?", ""],
-  [
-    "Harbour Pictures",
-    "Yesterday",
-    "Signed agreement attached",
-    "Please send the deposit invoice…",
-  ],
-  ["Kenneth Yau", "Yesterday", "Is the day pass valid on Saturdays?", ""],
-  [
-    "Priya Raghunathan",
-    "Mon",
-    "Trial day on Thursday",
-    "Looking forward to it — what time…",
-  ],
-  ["Wendy Lo · Colliers", "Mon", "Two more office enquiries", ""],
-  ["Delphine Roux", "Sun", "Merci — I’ll confirm next week", ""],
-];
+import { useAuth } from "../auth/AuthContext";
+
 export default function Inbox() {
-  const [sel, setSel] = useState(threads[0]);
+  const { request } = useAuth();
+  const [threads, setThreads] = useState([]),
+    [selected, setSelected] = useState(null),
+    [messages, setMessages] = useState([]),
+    [templates, setTemplates] = useState([]),
+    [templateId, setTemplateId] = useState(""),
+    [body, setBody] = useState(""),
+    [error, setError] = useState(""),
+    [sending, setSending] = useState(false);
+  async function load() {
+    try {
+      const [r, t] = await Promise.all([
+        request("/inbox", { query: { limit: 100 } }),
+        request("/templates", { query: { limit: 100 } }),
+      ]);
+      setThreads(r.data || []);
+      setTemplates(t.data?.items || []);
+      if (!selected && r.data?.[0]) open(r.data[0]._id);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  async function open(id) {
+    try {
+      const r = await request(`/inbox/${id}`);
+      setSelected(r.data.conversation);
+      setMessages(r.data.messages || []);
+      if (r.data.conversation.unreadCount)
+        await request(`/inbox/${id}/read`, { method: "PATCH" });
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  useEffect(() => {
+    load();
+  }, []);
+  async function send() {
+    if (!selected || !body.trim()) return;
+    setSending(true);
+    try {
+      const r = await request(`/inbox/${selected._id}/messages`, {
+        method: "POST",
+        body: { body, templateId: templateId || undefined, attachments: [] },
+      });
+      setMessages((m) => [...m, r.data]);
+      setBody("");
+      setTemplateId("");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSending(false);
+    }
+  }
   return (
-    <Page
-      title="Inbox"
-      kicker="Email and WhatsApp · 12 unanswered"
-      actions={<button className="btn ghost">Connect Gmail</button>}
-    >
-      <div className="inbox-grid">
-        <section className="panel thread-list">
-          <SectionTitle title="Inbox" note="All 12 · Email 8 · WhatsApp 4" />
-          {threads.map((t) => (
-            <button
-              className={`thread ${sel[0] === t[0] ? "selected" : ""}`}
-              onClick={() => setSel(t)}
-              key={t[0]}
-            >
-              <div>
-                <b>{t[0]}</b>
-                <span>{t[2]}</span>
-                <small>{t[3]}</small>
-              </div>
-              <time>{t[1]}</time>
-            </button>
-          ))}
-        </section>
-        <section className="panel conversation">
-          <div className="conversation-head">
-            <div>
-              <span className="eyebrow">
-                {sel[0]} · adeline@meridianlegal.hk · 9 messages
-              </span>
-              <h2>{sel[2]}</h2>
-            </div>
-            <Badge>Quote sent</Badge>
+    <Page title="Inbox" kicker="Email & WhatsApp conversations">
+      <div className="contact-grid inbox-grid">
+        {error && (
+          <div className="notice error">
+            <b>Inbox</b>
+            <span>{error}</span>
           </div>
-          <div className="linked-deal">
-            <b>Linked deal: Private office — 4 desks</b>
-            <span>Stage: Quote sent · Quiet 4 days</span>
-          </div>
-          <div className="message-summary">
-            <Badge>AI assist</Badge>
-            <p>
-              Nine messages since 28 August. Adeline wants suite 1204B for four
-              desks from 1 November, needs a 24-month term at a fixed rate, and
-              asks whether the deposit can be two months instead of three.
-              Nathan Sze must approve. Outstanding: confirmed rate, deposit
-              terms, and a signature date.
-            </p>
-          </div>
-          <div className="message">
-            <b>Adeline Cheung</b>
-            <p>
-              Hi JoJo — a few questions before we sign. Can we hold suite 1204B
-              while we confirm the deposit terms?
-            </p>
-            <small>08:52 today</small>
-          </div>
-          <div className="reply">
-            <textarea placeholder="Write a reply or insert a template…" />
-            <div>
-              <button className="btn ghost">Insert template</button>
-              <button className="btn ghost">Create task</button>
-              <button className="btn primary">
-                Send & move to Negotiation
+        )}
+        <section className="panel contact-list">
+          {threads.length === 0 ? (
+            <Empty text="No conversations." />
+          ) : (
+            threads.map((t) => (
+              <button
+                key={t._id}
+                className={`contact-row ${selected?._id === t._id ? "selected" : ""}`}
+                onClick={() => open(t._id)}
+              >
+                <span className="avatar">
+                  {(t.participantName || t.channel || "I")[0].toUpperCase()}
+                </span>
+                <div>
+                  <b>
+                    {t.subject ||
+                      t.participantName ||
+                      t.participantAddress ||
+                      "Conversation"}
+                  </b>
+                  <span>
+                    {t.channel} ·{" "}
+                    {t.unreadCount ? `${t.unreadCount} unread` : t.status}
+                  </span>
+                </div>
               </button>
+            ))
+          )}
+        </section>
+        <section className="panel contact-detail">
+          <div className="profile-head">
+            <div>
+              <span className="eyebrow">{selected?.channel || "Inbox"}</span>
+              <h2>
+                {selected?.subject ||
+                  selected?.participantName ||
+                  "Select a conversation"}
+              </h2>
             </div>
+            {selected && (
+              <div className="actions">
+                <Badge>{selected.status}</Badge>
+                <button
+                  className="btn ghost"
+                  onClick={async () => {
+                    const contactId = prompt(
+                      "Contact ID to link",
+                      selected.contactId?._id || "",
+                    );
+                    if (!contactId) return;
+                    try {
+                      const r = await request(`/inbox/${selected._id}/link`, {
+                        method: "PATCH",
+                        body: { contactId },
+                      });
+                      setSelected(r.data);
+                    } catch (e) {
+                      setError(e.message);
+                    }
+                  }}
+                >
+                  Link contact
+                </button>
+              </div>
+            )}
           </div>
+          {!selected ? (
+            <Empty text="Select a conversation." />
+          ) : (
+            <>
+              <div className="timeline message-thread">
+                {messages.map((m) => (
+                  <p key={m._id}>
+                    <b>{m.senderName || m.senderAddress || m.direction}</b>
+                    <span>{m.body}</span>
+                    <small>{new Date(m.sentAt).toLocaleString()}</small>
+                  </p>
+                ))}
+              </div>
+              <div className="reply-box">
+                <div className="form-grid">
+                  <label>
+                    Template
+                    <select
+                      value={templateId}
+                      onChange={(e) => {
+                        setTemplateId(e.target.value);
+                        const t = templates.find(
+                          (x) => x._id === e.target.value,
+                        );
+                        if (t) setBody(t.body);
+                      }}
+                    >
+                      <option value="">No template</option>
+                      {templates.map((t) => (
+                        <option key={t._id} value={t._id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <textarea
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  placeholder="Write a reply…"
+                />
+                <div className="actions">
+                  <button
+                    className="btn primary"
+                    disabled={sending}
+                    onClick={send}
+                  >
+                    {sending ? "Sending…" : "Send"}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </section>
       </div>
     </Page>

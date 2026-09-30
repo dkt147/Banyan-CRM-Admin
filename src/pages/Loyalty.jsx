@@ -1,59 +1,111 @@
-import React from "react";
-import { useState } from "react";
-import { Page, SectionTitle } from "./Dashboard";
+import React, { useEffect, useMemo, useState } from "react";
+import { Page, SectionTitle, Empty } from "./Dashboard";
 import Badge from "../components/Badge";
-import Modal from "../components/Modal";
-import { loyaltyClients } from "../data/mock";
 import Metric from "../components/Metric";
-const tiers = [
-  [
-    "Bronze",
-    "19 clients",
-    "Under HK$100,000 lifetime",
-    ["5% off venue hire", "Priority on provisional holds"],
-    "bronze",
-  ],
-  [
-    "Silver",
-    "11 clients",
-    "HK$100,000 – 250,000",
-    ["10% off venue hire", "Two free meeting room hours a quarter"],
-    "silver",
-  ],
-  [
-    "Gold",
-    "6 clients",
-    "HK$250,000 – 500,000",
-    [
-      "15% off venue hire",
-      "Free AV and coordinator",
-      "One complimentary studio half-day a year",
-    ],
-    "gold",
-  ],
-  [
-    "Platinum",
-    "2 clients",
-    "Above HK$500,000 lifetime",
-    [
-      "20% off venue hire",
-      "First refusal on peak dates",
-      "Named account contact",
-    ],
-    "platinum",
-  ],
-];
+import Modal from "../components/Modal";
+import { useAuth } from "../auth/AuthContext";
 export default function Loyalty() {
-  const [modal, setModal] = useState(null);
+  const { request } = useAuth();
+  const [accounts, setAccounts] = useState([]),
+    [tiers, setTiers] = useState([]),
+    [redemptions, setRedemptions] = useState([]),
+    [ledger, setLedger] = useState([]),
+    [contacts, setContacts] = useState([]),
+    [modal, setModal] = useState(null),
+    [form, setForm] = useState({
+      contactId: "",
+      points: 100,
+      reason: "",
+      rewardDescription: "",
+      dealId: "",
+    }),
+    [error, setError] = useState("");
+  async function load() {
+    try {
+      const [a, t, r, l, c] = await Promise.all([
+        request("/loyalty/accounts", { query: { limit: 100 } }),
+        request("/loyalty-tiers", {
+          query: { limit: 100, sort: "sortOrder", order: "asc" },
+        }),
+        request("/loyalty-redemptions", {
+          query: { limit: 100, sort: "requestedAt", order: "desc" },
+        }),
+        request("/loyalty-ledger", {
+          query: { limit: 100, sort: "createdAt", order: "desc" },
+        }),
+        request("/contacts", { query: { limit: 100 } }),
+      ]);
+      setAccounts(a.data?.items || []);
+      setTiers(t.data?.items || []);
+      setRedemptions(r.data?.items || []);
+      setLedger(l.data?.items || []);
+      setContacts(c.data?.items || []);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  useEffect(() => {
+    load();
+  }, []);
+  const points = accounts.reduce((a, x) => a + (x.pointsBalance || 0), 0),
+    redeemed = accounts.reduce((a, x) => a + (x.lifetimeRedeemed || 0), 0),
+    pending = redemptions.filter((x) => x.status === "requested").length;
+  async function redeem() {
+    try {
+      await request("/loyalty/redemptions", {
+        method: "POST",
+        body: {
+          contactId: form.contactId,
+          points: Number(form.points),
+          rewardDescription: form.rewardDescription || "Reward request",
+          dealId: form.dealId || undefined,
+        },
+      });
+      setModal(null);
+      load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  async function adjust() {
+    try {
+      await request("/loyalty/adjust", {
+        method: "POST",
+        body: {
+          contactId: form.contactId,
+          points: Number(form.points),
+          reason: form.reason,
+        },
+      });
+      setModal(null);
+      load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  async function decide(id, approve) {
+    try {
+      await request(`/loyalty/redemptions/${id}/decision`, {
+        method: "PATCH",
+        body: { approve, reason: form.reason || "Operator decision" },
+      });
+      load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
   return (
     <Page
       title="Loyalty rewards"
-      kicker="Event & venue clients · 1 point per HK$100 spent"
+      kicker="1 point per HK$100 paid"
       actions={
         <>
-          <span className="muted">
-            Points accrue when an invoice is paid, never when it is raised
-          </span>
+          <button
+            className="btn ghost"
+            onClick={() => setModal("Request redemption")}
+          >
+            Request redemption
+          </button>
           <button
             className="btn primary"
             onClick={() => setModal("Adjust points")}
@@ -63,196 +115,186 @@ export default function Loyalty() {
         </>
       }
     >
+      {error && (
+        <div className="notice error">
+          <b>Loyalty</b>
+          <span>{error}</span>
+        </div>
+      )}
       <div className="metrics five">
         <Metric
           label="Enrolled clients"
-          value="38"
-          sub="Automatic on first event"
+          value={accounts.length}
+          sub="CRM loyalty accounts"
         />
         <Metric
           label="Points outstanding"
-          value="14,820"
-          sub="≈ HK$44,500 in rewards"
+          value={points.toLocaleString()}
+          sub="Current balances"
         />
         <Metric
-          label="Redeemed this quarter"
-          value="3,150"
-          sub="7 redemptions"
+          label="Redeemed"
+          value={redeemed.toLocaleString()}
+          sub="Lifetime redeemed"
         />
-        <Metric
-          label="Repeat event rate"
-          value="46%"
-          sub="▲ 9 pts since launch"
-        />
+        <Metric label="Tiers" value={tiers.length} sub="Configured tiers" />
         <Metric
           label="Awaiting action"
-          value="2"
-          sub="1 upgrade · 1 redemption"
+          value={pending}
+          sub="Pending redemptions"
           accent
         />
       </div>
       <section>
-        <SectionTitle
-          title="The four tiers"
-          note="Tier is set by cumulative paid spend, recalculated on every payment"
-        />
+        <SectionTitle title="The tiers" note="Configured from MongoDB" />
         <div className="tier-grid">
           {tiers.map((t) => (
-            <div className={`tier-card ${t[4]}`} key={t[0]}>
+            <div className="tier-card" key={t._id}>
               <div>
-                <b>◈ {t[0]}</b>
-                <span>{t[1]}</span>
+                <b>◈ {t.name}</b>
+                <span>{t.minSpend.toLocaleString()}+ HKD</span>
               </div>
-              <small>{t[2]}</small>
-              {t[3].map((x) => (
-                <span key={x}>{x}</span>
+              <small>
+                {t.maxSpend
+                  ? `Up to ${t.maxSpend.toLocaleString()}`
+                  : "No upper limit"}
+              </small>
+              {(t.benefits || []).map((b) => (
+                <span key={b}>{b}</span>
               ))}
+              <div className="actions">
+                <button
+                  className="btn ghost"
+                  onClick={async () => {
+                    try {
+                      await request(`/loyalty-tiers/${t._id}`, {
+                        method: "PATCH",
+                        body: {
+                          discountPercent: t.discountPercent,
+                          isActive: !t.isActive,
+                        },
+                      });
+                      load();
+                    } catch (e) {
+                      setError(e.message);
+                    }
+                  }}
+                >
+                  Toggle
+                </button>
+                <button
+                  className="btn ghost"
+                  onClick={async () => {
+                    if (!confirm("Delete tier?")) return;
+                    try {
+                      await request(`/loyalty-tiers/${t._id}`, {
+                        method: "DELETE",
+                      });
+                      load();
+                    } catch (e) {
+                      setError(e.message);
+                    }
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>
       </section>
       <section>
-        <SectionTitle title="Needs a decision" />
-        <div className="decision-grid">
-          <Decision
-            title="Lumen Studio → Gold"
-            tag="Upgrade earned"
-            body="Crossed HK$250,000 lifetime when the June balance cleared"
-            action="Send upgrade notice"
-            onClick={() => setModal("Send upgrade notice")}
-          />
-          <Decision
-            title="Aurora Beauty · 1,200 points"
-            tag="Redemption requested"
-            body="Wants the studio half-day against their November shoot"
-            action="Approve & apply to deal"
-            onClick={() => setModal("Approve redemption")}
-          />
+        <SectionTitle title="Loyalty accounts" />
+        <div className="panel table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Tier</th>
+                <th>Points</th>
+                <th>Lifetime spend</th>
+              </tr>
+            </thead>
+            <tbody>
+              {accounts.map((a) => (
+                <tr key={a._id}>
+                  <td>
+                    <b>
+                      {a.contactId?.firstName} {a.contactId?.lastName}
+                    </b>
+                    <span>{a.contactId?.email || ""}</span>
+                  </td>
+                  <td>{a.tierId?.name || "—"}</td>
+                  <td>{a.pointsBalance}</td>
+                  <td>HK${Number(a.lifetimeSpend || 0).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {accounts.length === 0 && (
+            <Empty text="No loyalty accounts yet. They are created when points are earned or adjusted." />
+          )}
         </div>
       </section>
-      <section className="panel table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Client</th>
-              <th>Tier</th>
-              <th>Lifetime spend</th>
-              <th>Points</th>
-              <th>To next tier</th>
-              <th>Last event</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loyaltyClients.map((r) => (
-              <tr
-                key={r[0]}
-                className={r[0] === "Lumen Studio" ? "highlight" : ""}
-              >
-                <td>
-                  <b>{r[0]}</b>
-                  <span>{r[1]}</span>
-                </td>
-                <td>
-                  <Badge tone={r[2].includes("Platinum") ? "platinum" : ""}>
-                    {r[2]}
-                  </Badge>
-                </td>
-                <td>{r[3]}</td>
-                <td>{r[4]}</td>
-                <td>{r[5]}</td>
-                <td>{r[6]}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-      <div className="loyalty-bottom">
-        <section className="panel">
-          <SectionTitle
-            title="Points ledger — Lumen Studio"
-            note="Balance 2,640"
-          />
-          {[
-            [
-              "Product launch · event space",
-              "14 Jun · invoice paid HK$32,500",
-              "+325",
-            ],
-            [
-              "Meeting room hours redeemed",
-              "2 Jun · Silver quarterly benefit",
-              "−400",
-            ],
-            [
-              "Spring campaign shoot · studio",
-              "18 Apr · invoice paid HK$11,500",
-              "+115",
-            ],
-            [
-              "Team offsite · venue hire",
-              "3 Mar · invoice paid HK$28,000",
-              "+280",
-            ],
-            ["Enrolled · first event", "11 Nov 2025 · Bronze", "—"],
-          ].map((x) => (
-            <div className="ledger" key={x[0]}>
+      <section>
+        <SectionTitle title="Redemptions needing a decision" />
+        {redemptions
+          .filter((x) => x.status === "requested")
+          .map((r) => (
+            <div className="decision panel" key={r._id}>
               <div>
-                <b>{x[0]}</b>
-                <span>{x[1]}</span>
+                <b>
+                  {r.contactId?.firstName} {r.contactId?.lastName}
+                </b>
+                <Badge tone="warn">{r.points} points</Badge>
               </div>
-              <strong className={x[2].startsWith("−") ? "negative" : ""}>
-                {x[2]}
-              </strong>
+              <p>{r.rewardDescription || "Reward request"}</p>
+              <button
+                className="btn primary"
+                onClick={() => decide(r._id, true)}
+              >
+                Approve
+              </button>
+              <button
+                className="btn ghost"
+                onClick={() => decide(r._id, false)}
+              >
+                Decline
+              </button>
             </div>
           ))}
-        </section>
-        <div className="stack">
-          <section className="notice green">
-            <b>What runs on its own</b>
-            <span>
-              Invoice marked paid in Xero → points added at 1 per HK$100.
-            </span>
-            <span>
-              Threshold crossed → upgrade flagged for approval, then notice
-              sends.
-            </span>
-            <span>
-              Redemption approved → discount applied as a deal line item.
-            </span>
-            <span>
-              No event for 12 months → win-back flag; tier held for a further
-              year.
-            </span>
-          </section>
-          <section className="panel">
-            <SectionTitle title="Where the tier shows up" />
-            <p>A tier badge on the contact and company record.</p>
-            <p>On venue and studio deal cards before quoting.</p>
-            <p>
-              In venue hire and photoshoot quote templates as a discount line.
-            </p>
-          </section>
-          <section className="panel">
-            <SectionTitle title="Tier distribution" />
-            {[
-              ["Bronze", 19],
-              ["Silver", 11],
-              ["Gold", 6],
-              ["Platinum", 2],
-            ].map((x) => (
-              <div className="dist" key={x[0]}>
-                <div>
-                  <span>{x[0]}</span>
-                  <b>{x[1]}</b>
-                </div>
-                <div className="dist-track">
-                  <i style={{ width: `${(x[1] / 38) * 100}%` }} />
-                </div>
-              </div>
-            ))}
-          </section>
+        {pending === 0 && <Empty text="No pending redemptions." />}
+      </section>
+      <section>
+        <SectionTitle title="Points ledger" />
+        <div className="panel table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Contact</th>
+                <th>Points</th>
+                <th>Balance after</th>
+                <th>Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ledger.map((x) => (
+                <tr key={x._id}>
+                  <td>{x.type}</td>
+                  <td>
+                    {x.contactId?.firstName} {x.contactId?.lastName}
+                  </td>
+                  <td>{x.points}</td>
+                  <td>{x.balanceAfter}</td>
+                  <td>{x.reason || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {ledger.length === 0 && <Empty text="No ledger entries." />}
         </div>
-      </div>
+      </section>
       {modal && (
         <Modal
           title={modal}
@@ -262,38 +304,59 @@ export default function Loyalty() {
               <button className="btn ghost" onClick={() => setModal(null)}>
                 Cancel
               </button>
-              <button className="btn primary" onClick={() => setModal(null)}>
+              <button
+                className="btn primary"
+                onClick={modal === "Request redemption" ? redeem : adjust}
+              >
                 Confirm
               </button>
             </>
           }
         >
-          <p>
-            This action is intentionally operator-approved in the prototype. The
-            production backend should create an auditable loyalty ledger entry
-            and link it to the deal.
-          </p>
           <label>
-            Reason
-            <textarea placeholder="Add a reason…" />
+            Contact
+            <select
+              value={form.contactId}
+              onChange={(e) => setForm({ ...form, contactId: e.target.value })}
+            >
+              <option value="">Select contact</option>
+              {contacts.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.firstName} {c.lastName}
+                </option>
+              ))}
+            </select>
           </label>
+          <div className="form-grid">
+            <label>
+              Points
+              <input
+                type="number"
+                value={form.points}
+                onChange={(e) => setForm({ ...form, points: e.target.value })}
+              />
+            </label>
+            <label>
+              {modal === "Request redemption" ? "Reward" : "Reason"}
+              <input
+                value={
+                  modal === "Request redemption"
+                    ? form.rewardDescription
+                    : form.reason
+                }
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    [modal === "Request redemption"
+                      ? "rewardDescription"
+                      : "reason"]: e.target.value,
+                  })
+                }
+              />
+            </label>
+          </div>
         </Modal>
       )}
     </Page>
-  );
-}
-function Decision({ title, tag, body, action, onClick }) {
-  return (
-    <div className="decision">
-      <div>
-        <b>{title}</b>
-        <Badge tone="warn">{tag}</Badge>
-      </div>
-      <p>{body}</p>
-      <button className="btn primary" onClick={onClick}>
-        {action}
-      </button>
-      <button className="btn ghost">Hold / Decline</button>
-    </div>
   );
 }

@@ -1,107 +1,208 @@
-import React from "react";
-import { Page, SectionTitle } from "./Dashboard";
-import Metric from "../components/Metric";
+import React, { useEffect, useState } from "react";
+import { Page, Empty } from "./Dashboard";
 import Badge from "../components/Badge";
-const flags = [
-  [
-    "Ceres Nutrition",
-    "No check-in 41 days",
-    "Virtual office · HK$800/mo · renews 9 Nov",
-    "Mail collected once since July. Worth a call before the renewal notice goes out.",
-  ],
-  [
-    "Wing Tai Consulting",
-    "Complaint logged",
-    "Coworking · 3 members · HK$11,400/mo",
-    "Raised noise in the lounge twice in August. Offer the quiet zone desks.",
-  ],
-  [
-    "Saltwater Design Co.",
-    "Upsell opportunity",
-    "Private office · 6 desks · renews 18 Oct",
-    "Meeting room credits at 94% for three months running — propose the next tier.",
-  ],
-];
+import Modal from "../components/Modal";
+import { useAuth } from "../auth/AuthContext";
 export default function Members() {
+  const { request, user } = useAuth();
+  const [rows, setRows] = useState([]),
+    [modal, setModal] = useState(false),
+    [form, setForm] = useState({
+      name: "",
+      email: "",
+      password: "",
+      role: "operator",
+      phone: "",
+      jobTitle: "",
+    }),
+    [error, setError] = useState("");
+  async function load() {
+    try {
+      const r = await request("/members", { query: { status: "active" } });
+      setRows(r.data || []);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  useEffect(() => {
+    load();
+  }, []);
+  async function create() {
+    try {
+      await request("/members", { method: "POST", body: form });
+      setModal(false);
+      setForm({
+        name: "",
+        email: "",
+        password: "",
+        role: "operator",
+        phone: "",
+        jobTitle: "",
+      });
+      load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  async function deactivate(id) {
+    try {
+      await request(`/members/${id}`, { method: "DELETE" });
+      load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
   return (
     <Page
       title="Members"
-      kicker="Lifecycle after the sale"
-      actions={<button className="btn primary">Add member</button>}
-    >
-      <div className="filters large">
-        {[
-          "All 47",
-          "Private office 11",
-          "Coworking 24",
-          "Virtual 12",
-          "At risk 3",
-        ].map((x) => (
-          <button className={x.startsWith("All") ? "on" : ""} key={x}>
-            {x}
+      kicker="Workspace team access"
+      actions={
+        user?.role !== "operator" && (
+          <button className="btn primary" onClick={() => setModal(true)}>
+            Add member
           </button>
-        ))}
-      </div>
-      <div className="metrics four">
-        <Metric label="Desk occupancy" value="86%" sub="38 of 44 desks" />
-        <Metric label="Office occupancy" value="82%" sub="9 of 11 suites" />
-        <Metric label="Recurring revenue" value="HK$318k" sub="Per month" />
-        <Metric label="At risk" value="HK$34,400/mo" sub="exposed" accent />
-      </div>
-      <section>
-        <SectionTitle title="Flagged for attention" />
-        <div className="flag-grid">
-          {flags.map((f) => (
-            <div className="panel flag" key={f[0]}>
-              <div>
-                <b>{f[0]}</b>
-                <Badge tone="warn">{f[1]}</Badge>
-              </div>
-              <span>{f[2]}</span>
-              <p>{f[3]}</p>
-              <button className="btn ghost">Open member</button>
-            </div>
-          ))}
+        )
+      }
+    >
+      {error && (
+        <div className="notice error">
+          <b>Members</b>
+          <span>{error}</span>
         </div>
-      </section>
+      )}
       <section className="panel table-wrap">
         <table>
           <thead>
             <tr>
               <th>Member</th>
-              <th>Plan</th>
-              <th>Started</th>
-              <th>Renews</th>
-              <th>Add-ons</th>
-              <th>Last check-in</th>
+              <th>Role</th>
+              <th>Job title</th>
+              <th>Last login</th>
+              <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td>
-                <b>Saltwater Design Co.</b>
-                <span>6 members</span>
-              </td>
-              <td>Private office · 6 desks</td>
-              <td>18 Oct 2025</td>
-              <td>18 Oct 2026</td>
-              <td>Lockers · cards</td>
-              <td>8 Sep</td>
-            </tr>
-            <tr>
-              <td>
-                <b>Meridian Legal</b>
-                <span>4 members</span>
-              </td>
-              <td>Private office · 4 desks</td>
-              <td>1 Nov 2025</td>
-              <td>1 Nov 2026</td>
-              <td>Meeting room credits</td>
-              <td>Today</td>
-            </tr>
+            {rows.map((m) => (
+              <tr key={m._id}>
+                <td>
+                  <b>{m.name}</b>
+                  <span>{m.email}</span>
+                </td>
+                <td>
+                  <Badge>{m.role}</Badge>
+                </td>
+                <td>{m.jobTitle || "—"}</td>
+                <td>
+                  {m.lastLoginAt
+                    ? new Date(m.lastLoginAt).toLocaleString()
+                    : "Never"}
+                </td>
+                <td>{m.isActive ? "Active" : "Inactive"}</td>
+                <td>
+                  <button
+                    className="btn ghost"
+                    onClick={async () => {
+                      const role = prompt(
+                        "Role (admin, manager, operator)",
+                        m.role,
+                      );
+                      if (!role) return;
+                      try {
+                        await request(`/members/${m._id}`, {
+                          method: "PATCH",
+                          body: { role },
+                        });
+                        load();
+                      } catch (e) {
+                        setError(e.message);
+                      }
+                    }}
+                  >
+                    Edit role
+                  </button>{" "}
+                  {m._id !== user?._id && user?.role === "admin" && (
+                    <button
+                      className="btn ghost"
+                      onClick={() => deactivate(m._id)}
+                    >
+                      Deactivate
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
+        {rows.length === 0 && <Empty text="No members found." />}
       </section>
+      {modal && (
+        <Modal
+          title="Add member"
+          onClose={() => setModal(false)}
+          actions={
+            <>
+              <button className="btn ghost" onClick={() => setModal(false)}>
+                Cancel
+              </button>
+              <button className="btn primary" onClick={create}>
+                Create member
+              </button>
+            </>
+          }
+        >
+          <div className="form-grid">
+            <label>
+              Name
+              <input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </label>
+            <label>
+              Email
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+              />
+            </label>
+            <label>
+              Password
+              <input
+                type="password"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+              />
+            </label>
+            <label>
+              Role
+              <select
+                value={form.role}
+                onChange={(e) => setForm({ ...form, role: e.target.value })}
+              >
+                <option>operator</option>
+                <option>manager</option>
+                <option>admin</option>
+              </select>
+            </label>
+            <label>
+              Phone
+              <input
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              />
+            </label>
+            <label>
+              Job title
+              <input
+                value={form.jobTitle}
+                onChange={(e) => setForm({ ...form, jobTitle: e.target.value })}
+              />
+            </label>
+          </div>
+        </Modal>
+      )}
     </Page>
   );
 }

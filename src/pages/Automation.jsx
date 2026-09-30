@@ -1,125 +1,191 @@
-import React from "react";
-import { useState } from "react";
-import { Page, SectionTitle } from "./Dashboard";
+import React, { useEffect, useState } from "react";
+import { Page, SectionTitle, Empty } from "./Dashboard";
 import Badge from "../components/Badge";
-const rules = [
-  [
-    "When a quote is sent,",
-    "create",
-    "a follow-up task for 3 days later.",
-    "All pipelines · ran 34 times this month",
-    true,
-  ],
-  [
-    "When an agreement is signed,",
-    "create",
-    "the deposit invoice in Xero and a task to send it.",
-    "DocuSign → Xero · ran 9 times this month",
-    true,
-  ],
-  [
-    "When a membership expires in 60 days,",
-    "send",
-    "the renewal reminder; repeat at 30 days.",
-    "Members · 11 in the window",
-    true,
-  ],
-  [
-    "When an event is completed,",
-    "send",
-    "thanks and a Google review request after 2 days.",
-    "Venue hire · ran 6 times this month",
-    true,
-  ],
-  [
-    "When a website form arrives,",
-    "create",
-    "the contact and deal, and reply with the product template.",
-    "WordPress → CRM · ran 41 times this month",
-    true,
-  ],
-  [
-    "When a member has not checked in for 30 days,",
-    "flag",
-    "them at risk.",
-    "Needs the access control feed · off",
-    false,
-  ],
-];
+import Modal from "../components/Modal";
+import { useAuth } from "../auth/AuthContext";
 export default function Automation() {
-  const [enabled, setEnabled] = useState(rules.map((x) => x[4]));
+  const { request } = useAuth();
+  const [rules, setRules] = useState([]),
+    [integrations, setIntegrations] = useState([]),
+    [modal, setModal] = useState(false),
+    [form, setForm] = useState({
+      name: "",
+      description: "",
+      trigger: "",
+      conditions: [],
+      actions: [],
+      isEnabled: true,
+    }),
+    [error, setError] = useState("");
+  async function load() {
+    try {
+      const [r, i] = await Promise.all([
+        request("/automations"),
+        request("/integrations", { query: { limit: 100 } }),
+      ]);
+      setRules(r.data || []);
+      setIntegrations(i.data?.items || []);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  useEffect(() => {
+    load();
+  }, []);
+  async function create() {
+    try {
+      await request("/automations", { method: "POST", body: form });
+      setModal(false);
+      load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  async function toggle(r) {
+    try {
+      await request(`/automations/${r._id}`, {
+        method: "PATCH",
+        body: { isEnabled: !r.isEnabled },
+      });
+      load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+  async function execute(r) {
+    try {
+      await request(`/automations/${r._id}/execute`, {
+        method: "POST",
+        body: { context: { source: "crm-ui" } },
+      });
+      alert("Automation executed.");
+    } catch (e) {
+      setError(e.message);
+    }
+  }
   return (
     <Page
       title="Automations & connections"
-      kicker="Rules, in plain English"
-      actions={<button className="btn primary">New rule</button>}
+      kicker="Rules and integration status"
+      actions={
+        <button className="btn primary" onClick={() => setModal(true)}>
+          New rule
+        </button>
+      }
     >
+      {error && (
+        <div className="notice error">
+          <b>Automation</b>
+          <span>{error}</span>
+        </div>
+      )}
       <div className="automation-grid">
         <section>
-          <SectionTitle title="Active rules" />
-          {rules.map((r, i) => (
-            <div className="rule panel" key={r[0]}>
-              <div className="rule-copy">
-                <div>
-                  <span>{r[0]}</span> <b>{r[1]}</b> <span>{r[2]}</span>
+          <SectionTitle title="Rules" />
+          {rules.length === 0 ? (
+            <Empty text="No automation rules configured." />
+          ) : (
+            rules.map((r) => (
+              <div className="rule panel" key={r._id}>
+                <div className="rule-copy">
+                  <div>
+                    <span>{r.name}</span> <b>{r.trigger}</b>
+                  </div>
+                  <small>
+                    {r.description ||
+                      `${r.actions?.length || 0} actions · ${r.conditions?.length || 0} conditions`}
+                  </small>
                 </div>
-                <small>{r[3]}</small>
+                <button
+                  className={`switch ${r.isEnabled ? "on" : ""}`}
+                  onClick={() => toggle(r)}
+                >
+                  <i />
+                </button>
+                <button className="btn ghost" onClick={() => execute(r)}>
+                  Run
+                </button>
+                <button
+                  className="btn ghost"
+                  onClick={async () => {
+                    try {
+                      const x = await request(
+                        `/automations/${r._id}/executions`,
+                      );
+                      alert(`Executions: ${(x.data || []).length}`);
+                    } catch (e) {
+                      setError(e.message);
+                    }
+                  }}
+                >
+                  History
+                </button>
               </div>
-              <button
-                className={`switch ${enabled[i] ? "on" : ""}`}
-                onClick={() =>
-                  setEnabled((e) => e.map((v, j) => (j === i ? !v : v)))
-                }
-              >
-                <i />
-              </button>
-            </div>
-          ))}
+            ))
+          )}
         </section>
         <section>
-          <SectionTitle title="Inside a rule — stale deal escalation" />
-          <div className="panel branch">
-            <div>
-              <span className="eyebrow">Trigger</span>
-              <b>No activity on an open deal</b>
-            </div>
-            <strong>→</strong>
-            <div>
-              <span className="eyebrow">Condition</span>
-              <b>Days since last activity ≥ 5</b>
-            </div>
-            <strong>→</strong>
-            <div>
-              <span className="eyebrow">Action</span>
-              <b>Create Tier A task</b>
-            </div>
-            <div className="branch-note">
-              7 days → Tier B · 10 days → Tier C. The operator can override any
-              escalation.
-            </div>
-          </div>
           <SectionTitle title="Connected tools" />
-          <div className="connections">
-            {[
-              ["Gmail", "Two-way email · OAuth", "Connected"],
-              ["WhatsApp Business", "Messages + templates", "Connected"],
-              ["Google Calendar", "Two-way availability", "Connected"],
-              ["Xero", "Invoices + payment status", "Connected"],
-              ["DocuSign", "Agreements + signature events", "Connected"],
-              ["WordPress", "Website lead webhook", "Connected"],
-              ["Access control", "Check-in feed", "Not connected"],
-            ].map((x) => (
-              <div className="connection panel" key={x[0]}>
+          {integrations.length === 0 ? (
+            <Empty text="No integration records." />
+          ) : (
+            integrations.map((i) => (
+              <div className="connection panel" key={i._id}>
                 <div>
-                  <b>{x[0]}</b>
-                  <span>{x[1]}</span>
+                  <b>{i.provider}</b>
+                  <span>
+                    {i.accountName || i.externalAccountId || "No account"}
+                  </span>
                 </div>
-                <Badge tone={x[2] === "Connected" ? "" : "warn"}>{x[2]}</Badge>
+                <Badge tone={i.status === "connected" ? "" : "warn"}>
+                  {i.status}
+                </Badge>
               </div>
-            ))}
-          </div>
+            ))
+          )}
         </section>
       </div>
+      {modal && (
+        <Modal
+          title="New automation rule"
+          onClose={() => setModal(false)}
+          actions={
+            <>
+              <button className="btn ghost" onClick={() => setModal(false)}>
+                Cancel
+              </button>
+              <button className="btn primary" onClick={create}>
+                Create rule
+              </button>
+            </>
+          }
+        >
+          <label>
+            Name
+            <input
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+          </label>
+          <label>
+            Trigger
+            <input
+              value={form.trigger}
+              onChange={(e) => setForm({ ...form, trigger: e.target.value })}
+              placeholder="deal_stage_changed"
+            />
+          </label>
+          <label>
+            Description
+            <textarea
+              value={form.description}
+              onChange={(e) =>
+                setForm({ ...form, description: e.target.value })
+              }
+            />
+          </label>
+        </Modal>
+      )}
     </Page>
   );
 }
