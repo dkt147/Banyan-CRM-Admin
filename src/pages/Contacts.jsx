@@ -83,7 +83,7 @@ export default function Contacts() {
         },
       });
 
-      setCompanies(response.data || []);
+      setCompanies(Array.isArray(response.data) ? response.data : []);
     } catch (e) {
       setError(e.message || "Failed to load companies.");
     }
@@ -121,14 +121,14 @@ export default function Contacts() {
         query,
       });
 
-      const rows = response.data || [];
+      const rows = Array.isArray(response.data) ? response.data : [];
 
       setContacts(rows);
 
       setPagination({
         page: response.pagination?.page || page,
         limit: response.pagination?.limit || 25,
-        total: response.pagination?.total || 0,
+        total: response.pagination?.total || rows.length,
         totalPages: response.pagination?.totalPages || 1,
       });
 

@@ -1,11 +1,19 @@
 import React, { useEffect, useMemo, useState } from "react";
+
 import { Page, SectionTitle, Empty } from "./Dashboard";
+
 import Badge from "../components/Badge";
+
 import Metric from "../components/Metric";
+
 import Modal from "../components/Modal";
+
 import { useAuth } from "../auth/AuthContext";
+
 export default function Loyalty() {
+
   const { request } = useAuth();
+
   const [accounts, setAccounts] = useState([]),
     [tiers, setTiers] = useState([]),
     [redemptions, setRedemptions] = useState([]),
@@ -20,8 +28,38 @@ export default function Loyalty() {
       dealId: "",
     }),
     [error, setError] = useState("");
+
+  function getItems(response) {
+    const candidates = [
+      response?.data?.items,
+      response?.items,
+      response?.data?.data?.items,
+      response?.data?.contacts,
+      response?.data?.results,
+      response?.results,
+      Array.isArray(response?.data) ? response.data : null,
+      Array.isArray(response) ? response : null,
+    ];
+
+    return candidates.find(Array.isArray) || [];
+  }
+
+  function getContactName(contact) {
+    const firstName = contact?.firstName || contact?.first_name || "";
+    const lastName = contact?.lastName || contact?.last_name || "";
+    const fullName =
+      contact?.name ||
+      contact?.fullName ||
+      contact?.displayName ||
+      `${firstName} ${lastName}`.trim();
+
+    return fullName || contact?.email || "Unnamed contact";
+  }
+
   async function load() {
     try {
+      setError("");
+
       const [a, t, r, l, c] = await Promise.all([
         request("/loyalty/accounts", { query: { limit: 100 } }),
         request("/loyalty-tiers", {
@@ -33,25 +71,52 @@ export default function Loyalty() {
         request("/loyalty-ledger", {
           query: { limit: 100, sort: "createdAt", order: "desc" },
         }),
-        request("/contacts", { query: { limit: 100 } }),
+        request("/contacts", { query: { page: 1, limit: 100 } }),
       ]);
-      setAccounts(a.data?.items || []);
-      setTiers(t.data?.items || []);
-      setRedemptions(r.data?.items || []);
-      setLedger(l.data?.items || []);
-      setContacts(c.data?.items || []);
+
+      setAccounts(getItems(a));
+      setTiers(getItems(t));
+      setRedemptions(getItems(r));
+      setLedger(getItems(l));
+      setContacts(getItems(c));
     } catch (e) {
-      setError(e.message);
+      setError(e.message || "Failed to load loyalty data.");
+      setContacts([]);
     }
   }
+
   useEffect(() => {
     load();
   }, []);
-  const points = accounts.reduce((a, x) => a + (x.pointsBalance || 0), 0),
-    redeemed = accounts.reduce((a, x) => a + (x.lifetimeRedeemed || 0), 0),
-    pending = redemptions.filter((x) => x.status === "requested").length;
+
+  const points = accounts.reduce(
+    (a, x) => a + (Number(x.pointsBalance) || 0),
+    0
+  );
+
+  const redeemed = accounts.reduce(
+    (a, x) => a + (Number(x.lifetimeRedeemed) || 0),
+    0
+  );
+
+  const pending = redemptions.filter(
+    (x) => x.status === "requested"
+  ).length;
+
+  function resetForm() {
+    setForm({
+      contactId: "",
+      points: 100,
+      reason: "",
+      rewardDescription: "",
+      dealId: "",
+    });
+  }
+
   async function redeem() {
     try {
+      setError("");
+
       await request("/loyalty/redemptions", {
         method: "POST",
         body: {
@@ -61,14 +126,19 @@ export default function Loyalty() {
           dealId: form.dealId || undefined,
         },
       });
+
       setModal(null);
+      resetForm();
       load();
     } catch (e) {
-      setError(e.message);
+      setError(e.message || "Failed to request redemption.");
     }
   }
+
   async function adjust() {
     try {
+      setError("");
+
       await request("/loyalty/adjust", {
         method: "POST",
         body: {
@@ -77,23 +147,30 @@ export default function Loyalty() {
           reason: form.reason,
         },
       });
+
       setModal(null);
+      resetForm();
       load();
     } catch (e) {
-      setError(e.message);
+      setError(e.message || "Failed to adjust points.");
     }
   }
+
   async function decide(id, approve) {
     try {
+      setError("");
+
       await request(`/loyalty/redemptions/${id}/decision`, {
         method: "PATCH",
         body: { approve, reason: form.reason || "Operator decision" },
       });
+
       load();
     } catch (e) {
-      setError(e.message);
+      setError(e.message || "Failed to update redemption.");
     }
   }
+
   return (
     <Page
       title="Loyalty rewards"
@@ -102,13 +179,20 @@ export default function Loyalty() {
         <>
           <button
             className="btn ghost"
-            onClick={() => setModal("Request redemption")}
+            onClick={() => {
+              resetForm();
+              setModal("Request redemption");
+            }}
           >
             Request redemption
           </button>
+
           <button
             className="btn primary"
-            onClick={() => setModal("Adjust points")}
+            onClick={() => {
+              resetForm();
+              setModal("Adjust points");
+            }}
           >
             Adjust points
           </button>
@@ -121,23 +205,28 @@ export default function Loyalty() {
           <span>{error}</span>
         </div>
       )}
+
       <div className="metrics five">
         <Metric
           label="Enrolled clients"
           value={accounts.length}
           sub="CRM loyalty accounts"
         />
+
         <Metric
           label="Points outstanding"
           value={points.toLocaleString()}
           sub="Current balances"
         />
+
         <Metric
           label="Redeemed"
           value={redeemed.toLocaleString()}
           sub="Lifetime redeemed"
         />
+
         <Metric label="Tiers" value={tiers.length} sub="Configured tiers" />
+
         <Metric
           label="Awaiting action"
           value={pending}
@@ -145,23 +234,28 @@ export default function Loyalty() {
           accent
         />
       </div>
+
       <section>
         <SectionTitle title="The tiers" note="Configured from MongoDB" />
+
         <div className="tier-grid">
           {tiers.map((t) => (
             <div className="tier-card" key={t._id}>
               <div>
                 <b>◈ {t.name}</b>
-                <span>{t.minSpend.toLocaleString()}+ HKD</span>
+                <span>{Number(t.minSpend || 0).toLocaleString()}+ HKD</span>
               </div>
+
               <small>
                 {t.maxSpend
-                  ? `Up to ${t.maxSpend.toLocaleString()}`
+                  ? `Up to ${Number(t.maxSpend).toLocaleString()}`
                   : "No upper limit"}
               </small>
+
               {(t.benefits || []).map((b) => (
                 <span key={b}>{b}</span>
               ))}
+
               <div className="actions">
                 <button
                   className="btn ghost"
@@ -182,10 +276,12 @@ export default function Loyalty() {
                 >
                   Toggle
                 </button>
+
                 <button
                   className="btn ghost"
                   onClick={async () => {
                     if (!confirm("Delete tier?")) return;
+
                     try {
                       await request(`/loyalty-tiers/${t._id}`, {
                         method: "DELETE",
@@ -203,8 +299,10 @@ export default function Loyalty() {
           ))}
         </div>
       </section>
+
       <section>
         <SectionTitle title="Loyalty accounts" />
+
         <div className="panel table-wrap">
           <table>
             <thead>
@@ -215,6 +313,7 @@ export default function Loyalty() {
                 <th>Lifetime spend</th>
               </tr>
             </thead>
+
             <tbody>
               {accounts.map((a) => (
                 <tr key={a._id}>
@@ -224,20 +323,27 @@ export default function Loyalty() {
                     </b>
                     <span>{a.contactId?.email || ""}</span>
                   </td>
+
                   <td>{a.tierId?.name || "—"}</td>
                   <td>{a.pointsBalance}</td>
-                  <td>HK${Number(a.lifetimeSpend || 0).toLocaleString()}</td>
+                  <td>
+                    HK$
+                    {Number(a.lifetimeSpend || 0).toLocaleString()}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+
           {accounts.length === 0 && (
             <Empty text="No loyalty accounts yet. They are created when points are earned or adjusted." />
           )}
         </div>
       </section>
+
       <section>
         <SectionTitle title="Redemptions needing a decision" />
+
         {redemptions
           .filter((x) => x.status === "requested")
           .map((r) => (
@@ -248,13 +354,16 @@ export default function Loyalty() {
                 </b>
                 <Badge tone="warn">{r.points} points</Badge>
               </div>
+
               <p>{r.rewardDescription || "Reward request"}</p>
+
               <button
                 className="btn primary"
                 onClick={() => decide(r._id, true)}
               >
                 Approve
               </button>
+
               <button
                 className="btn ghost"
                 onClick={() => decide(r._id, false)}
@@ -263,10 +372,13 @@ export default function Loyalty() {
               </button>
             </div>
           ))}
+
         {pending === 0 && <Empty text="No pending redemptions." />}
       </section>
+
       <section>
         <SectionTitle title="Points ledger" />
+
         <div className="panel table-wrap">
           <table>
             <thead>
@@ -278,6 +390,7 @@ export default function Loyalty() {
                 <th>Reason</th>
               </tr>
             </thead>
+
             <tbody>
               {ledger.map((x) => (
                 <tr key={x._id}>
@@ -292,18 +405,30 @@ export default function Loyalty() {
               ))}
             </tbody>
           </table>
+
           {ledger.length === 0 && <Empty text="No ledger entries." />}
         </div>
       </section>
+
       {modal && (
         <Modal
           title={modal}
-          onClose={() => setModal(null)}
+          onClose={() => {
+            setModal(null);
+            resetForm();
+          }}
           actions={
             <>
-              <button className="btn ghost" onClick={() => setModal(null)}>
+              <button
+                className="btn ghost"
+                onClick={() => {
+                  setModal(null);
+                  resetForm();
+                }}
+              >
                 Cancel
               </button>
+
               <button
                 className="btn primary"
                 onClick={modal === "Request redemption" ? redeem : adjust}
@@ -315,29 +440,49 @@ export default function Loyalty() {
         >
           <label>
             Contact
+
             <select
               value={form.contactId}
-              onChange={(e) => setForm({ ...form, contactId: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, contactId: e.target.value })
+              }
             >
-              <option value="">Select contact</option>
-              {contacts.map((c) => (
-                <option key={c._id} value={c._id}>
-                  {c.firstName} {c.lastName}
-                </option>
-              ))}
+              <option value="">
+                {contacts.length === 0
+                  ? "No contacts found"
+                  : "Select contact"}
+              </option>
+
+              {contacts.map((c) => {
+                const id = c._id || c.id;
+
+                if (!id) return null;
+
+                return (
+                  <option key={id} value={id}>
+                    {getContactName(c)}
+                  </option>
+                );
+              })}
             </select>
           </label>
+
           <div className="form-grid">
             <label>
               Points
+
               <input
                 type="number"
                 value={form.points}
-                onChange={(e) => setForm({ ...form, points: e.target.value })}
+                onChange={(e) =>
+                  setForm({ ...form, points: e.target.value })
+                }
               />
             </label>
+
             <label>
               {modal === "Request redemption" ? "Reward" : "Reason"}
+
               <input
                 value={
                   modal === "Request redemption"

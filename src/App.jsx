@@ -11,6 +11,7 @@ import Deal from "./pages/Deal";
 import Contacts from "./pages/Contacts";
 import Templates from "./pages/Templates";
 import Calendar from "./pages/Calendar";
+import Bookings from "./pages/Bookings";
 import Agreements from "./pages/Agreements";
 import Invoices from "./pages/Invoices";
 import Members from "./pages/Members";
@@ -19,6 +20,7 @@ import Automation from "./pages/Automation";
 import Companies from "./pages/Companies";
 import Activities from "./pages/Activities";
 import Memberships from "./pages/Memberships";
+import CheckIns from "./pages/CheckIns";
 import Payments from "./pages/Payments";
 import Documents from "./pages/Documents";
 import AuditLogs from "./pages/AuditLogs";
@@ -42,10 +44,12 @@ function CRMRoutes() {
           <Route path="/activities" element={<Activities />} />
           <Route path="/templates" element={<Templates />} />
           <Route path="/calendar" element={<Calendar />} />
+          <Route path="/bookings" element={<Bookings />} />
           <Route path="/agreements" element={<Agreements />} />
           <Route path="/invoices" element={<Invoices />} />
           <Route path="/members" element={<Members />} />
           <Route path="/memberships" element={<Memberships />} />
+          <Route path="/check-ins" element={<CheckIns />} />
           <Route path="/payments" element={<Payments />} />
           <Route path="/loyalty" element={<Loyalty />} />
           <Route path="/automation" element={<Automation />} />

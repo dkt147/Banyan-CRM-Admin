@@ -2049,3 +2049,73 @@ select:focus-visible {
 .tabs {
   margin-bottom: 18px;
 }
+
+/* Sidebar navigation: contained, subtle scrollbar with a stable footer. */
+.sidebar nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(248, 244, 244, 0.28) transparent;
+}
+.sidebar nav::-webkit-scrollbar { width: 6px; }
+.sidebar nav::-webkit-scrollbar-track { background: transparent; }
+.sidebar nav::-webkit-scrollbar-thumb {
+  background: rgba(248, 244, 244, 0.25);
+  border-radius: 999px;
+}
+.sidebar nav::-webkit-scrollbar-thumb:hover { background: rgba(248, 244, 244, 0.42); }
+.booking-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.booking-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--ink2);
+}
+.booking-filters select {
+  border: 1px solid var(--line);
+  padding: 9px;
+  background: #fff;
+}
+.calendar-filter-note {
+  grid-column: span 2;
+  align-self: end;
+  padding: 9px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.detail-item {
+  border: 1px solid var(--line);
+  padding: 10px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.detail-item span, .detail-block > span {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.detail-item b { font-size: 13px; }
+.detail-block { grid-column: span 2; }
+.detail-block p { margin: 6px 0 0; white-space: pre-wrap; line-height: 1.55; }
+.form-span-2 { grid-column: span 2; }
+
+@media (max-width: 800px) {
+  .booking-filters, .detail-grid { grid-template-columns: 1fr; }
+  .calendar-filter-note, .detail-block, .form-span-2 { grid-column: auto; }
+}
