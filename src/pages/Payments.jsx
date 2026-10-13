@@ -6,7 +6,7 @@ import { useAuth } from "../auth/AuthContext";
 
 const EMPTY_FORM = {
   invoiceId: "",
-  provider: "stripe",
+  provider: "manual",
   externalId: "",
   amount: "",
   currency: "HKD",
@@ -16,7 +16,7 @@ const EMPTY_FORM = {
 
 const PAYMENT_STATUSES = ["pending", "succeeded", "failed", "refunded"];
 
-const PAYMENT_PROVIDERS = ["stripe", "xero"];
+const PAYMENT_PROVIDERS = ["manual", "xero"];
 
 function toDateTimeLocal(value) {
   if (!value) return "";
@@ -330,9 +330,14 @@ export default function Payments() {
       title="Payments"
       kicker="Payment records linked to invoices"
       actions={
-        <button className="btn primary" onClick={openCreate}>
-          Record payment
-        </button>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <button className="btn ghost" onClick={load} disabled={loading}>
+            {loading ? "Refreshing..." : "Refresh statuses"}
+          </button>
+          <button className="btn primary" onClick={openCreate}>
+            Record payment
+          </button>
+        </div>
       }
     >
       {error && (
@@ -407,27 +412,33 @@ export default function Payments() {
                   </td>
 
                   <td>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "6px",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <button
-                        className="btn ghost"
-                        onClick={() => openEdit(payment)}
+                    {payment.provider === "stripe" ? (
+                      <span title="Stripe payment status is managed by signed webhooks">
+                        Webhook managed
+                      </span>
+                    ) : (
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "6px",
+                          flexWrap: "wrap",
+                        }}
                       >
-                        Update
-                      </button>
+                        <button
+                          className="btn ghost"
+                          onClick={() => openEdit(payment)}
+                        >
+                          Update
+                        </button>
 
-                      <button
-                        className="btn ghost"
-                        onClick={() => deletePayment(payment)}
-                      >
-                        Delete
-                      </button>
-                    </div>
+                        <button
+                          className="btn ghost"
+                          onClick={() => deletePayment(payment)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               );

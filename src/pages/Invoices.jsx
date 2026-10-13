@@ -247,6 +247,9 @@ export default function Invoices() {
 
   const [error, setError] = useState("");
 
+  const [stripeNotice, setStripeNotice] = useState("");
+  const [payingInvoiceId, setPayingInvoiceId] = useState("");
+
   const [formError, setFormError] = useState("");
 
   const [loading, setLoading] = useState(false);
@@ -418,6 +421,76 @@ export default function Invoices() {
     load();
 
   }, []);
+
+  // Stripe Checkout redirects back here, but the verified webhook is the source
+  // of truth for invoice status. Poll the backend instead of trusting URL params.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const succeededReturn = params.get("stripe_success") === "1";
+    const cancelledReturn = params.get("stripe_cancelled") === "1";
+    if (!succeededReturn && !cancelledReturn) return undefined;
+
+    const invoiceId = params.get("invoiceId");
+    // Defer URL cleanup by one task so React StrictMode's development effect
+    // replay can restart the polling effect after its first cleanup.
+    const cleanUrl = new URL(window.location.href);
+    ["stripe_success", "stripe_cancelled", "invoiceId", "session_id"].forEach(
+      (key) => cleanUrl.searchParams.delete(key),
+    );
+    const cleanUrlTimer = window.setTimeout(() => {
+      window.history.replaceState(
+        {},
+        document.title,
+        `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`,
+      );
+    }, 0);
+
+    if (cancelledReturn) {
+      setStripeNotice("Checkout was cancelled. No successful payment was confirmed; you can try again from this invoice.");
+      loadInvoices();
+      return () => window.clearTimeout(cleanUrlTimer);
+    }
+
+    if (!invoiceId) {
+      setStripeNotice("Stripe returned to the CRM. Refresh invoices to verify the final payment status.");
+      loadInvoices();
+      return () => window.clearTimeout(cleanUrlTimer);
+    }
+
+    let stopped = false;
+    setStripeNotice("Checkout returned successfully. Waiting for Stripe's verified webhook to update the invoice...");
+
+    (async () => {
+      for (let attempt = 0; attempt < 20 && !stopped; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 1500));
+        if (stopped) return;
+
+        try {
+          const response = await request(`/invoices/${invoiceId}`);
+          const latestInvoice =
+            response?.data?.data || response?.data?.invoice || response?.data;
+          if (latestInvoice?.status === "paid") {
+            setStripeNotice("Payment confirmed. Stripe's webhook has marked this invoice as paid.");
+            await loadInvoices();
+            return;
+          }
+        } catch {
+          // Keep polling briefly; a transient request failure should not mark paid.
+        }
+      }
+
+      if (!stopped) {
+        await loadInvoices();
+        setStripeNotice("Payment was submitted, but the webhook has not marked this invoice as paid yet. Confirm the Stripe webhook endpoint is reachable; for local testing, keep Stripe CLI forwarding and refresh the status shortly.");
+      }
+    })();
+
+    return () => {
+      stopped = true;
+      window.clearTimeout(cleanUrlTimer);
+    };
+  }, [request]);
+
 
 
 
@@ -833,43 +906,40 @@ export default function Invoices() {
 
 
 
-  async function markPaid(invoice) {
+  async function payWithStripe(invoice) {
+    if (!invoice?._id || payingInvoiceId) return;
 
-    if (!invoice?._id) return;
+    try {
+      setError("");
+      setStripeNotice("");
+      setPayingInvoiceId(invoice._id);
 
-    if (!window.confirm(`Mark ${invoice.invoiceNumber || "this invoice"} as paid?`)) return;
+      const response = await request("/payments/stripe/checkout-sessions", {
+        method: "POST",
+        body: { invoiceId: invoice._id },
+      });
 
-    try {
+      const checkoutUrl = response?.data?.checkoutUrl;
+      if (!checkoutUrl) {
+        throw new Error("Stripe did not return a Checkout URL. Check the backend Stripe configuration.");
+      }
 
-      setError("");
+      const parsedCheckoutUrl = new URL(checkoutUrl);
+      if (
+        parsedCheckoutUrl.protocol !== "https:" ||
+        parsedCheckoutUrl.hostname !== "checkout.stripe.com"
+      ) {
+        throw new Error("The backend returned an invalid Stripe Checkout URL.");
+      }
 
-      await request(`/invoices/${invoice._id}/pay`, {
+      window.location.assign(parsedCheckoutUrl.toString());
+    } catch (e) {
+      setError(e.message || "Could not start Stripe Checkout.");
+      setPayingInvoiceId("");
+    }
+  }
 
-        method: "PATCH",
-
-        body: {
-
-          amount: Number(invoice.total || 0),
-
-          provider: invoice.provider || "stripe",
-
-        },
-
-      });
-
-      await loadInvoices();
-
-    } catch (e) {
-
-      setError(e.message || "Failed to mark invoice as paid.");
-
-    }
-
-  }
-
-
-
-  async function markOverdue() {
+  async function markOverdue() {
 
     try {
 
@@ -1009,7 +1079,14 @@ export default function Invoices() {
 
 
 
-      <div className="metrics five">
+      {stripeNotice && (
+        <div className="notice green">
+          <b>Stripe payment</b>
+          <span>{stripeNotice}</span>
+        </div>
+      )}
+
+      <div className="metrics five">
 
         <MetricX label="Total" value={metrics.total} />
 
@@ -1167,25 +1244,17 @@ export default function Invoices() {
 
 
 
-                    {invoice.status !== "paid" && invoice.status !== "cancelled" && (
+                    {["awaiting", "overdue"].includes(invoice.status) && (
+                      <button
+                        className="btn primary"
+                        onClick={() => payWithStripe(invoice)}
+                        disabled={Boolean(payingInvoiceId)}
+                      >
+                        {payingInvoiceId === invoice._id ? "Opening Stripe..." : "Pay with Stripe"}
+                      </button>
+                    )}
 
-                      <button
-
-                        className="btn ghost"
-
-                        onClick={() => markPaid(invoice)}
-
-                      >
-
-                        Mark paid
-
-                      </button>
-
-                    )}
-
-
-
-                    <button
+                    <button
 
                       className="btn ghost"
 
@@ -1605,7 +1674,7 @@ export default function Invoices() {
 
               >
 
-                {INVOICE_STATUSES.map((status) => (
+                {INVOICE_STATUSES.filter((status) => status !== "paid").map((status) => (
 
                   <option key={status} value={status}>
 
@@ -1615,7 +1684,12 @@ export default function Invoices() {
 
                 ))}
 
-              </select>
+              {form.status === "paid" && (
+                  <option value="paid" disabled>
+                    paid (confirmed by payment webhook)
+                  </option>
+                )}
+                </select>
 
             </label>
 
