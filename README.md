@@ -10,7 +10,7 @@ A React + Vite frontend implementation of the latest Banyan Workspace CRM protot
 - Source Serif 4
 
 ## Screens
-Dashboard, Tasks, Inbox, Pipelines, Deal, Contacts, Templates, Calendar, Agreements, Invoices, Members, Loyalty, Automations.
+Dashboard, Tasks, Inbox, Pipelines, Deal, Contacts, Templates, Calendar, Agreements, Invoices, Members, Loyalty, Automations, Integrations.
 
 ## Current scope
 The frontend is connected to the Node/Express/MongoDB backend. Prototype/mock data remains only as static navigation metadata and reference content; business records are loaded from the API.
@@ -22,7 +22,7 @@ npm run dev
 ```
 
 ## Backend integration boundary
-Replace the mock data/actions with REST API calls without changing the visual information architecture. Integrated API domains: auth, workspace, members, contacts, companies, deals/pipelines/stages, activities, tasks, inbox/conversations/messages, templates, calendar/events/bookings, agreements, invoices/payments, memberships/plans/check-ins, loyalty/accounts/ledger/tiers/redemptions, automations/executions, integrations, notifications, documents and audit logs. External webhooks remain backend-only infrastructure.
+Replace the mock data/actions with REST API calls without changing the visual information architecture. Integrated API domains: auth, workspace, members, contacts, companies, deals/pipelines/stages, activities, tasks, inbox/conversations/messages, templates, calendar/events/bookings, agreements, invoices/payments, memberships/plans/check-ins, loyalty/accounts/ledger/tiers/redemptions, automations/executions, integrations, notifications, documents and audit logs. Gmail is connected through the Integrations/Inbox screens (sync, compose, send replies). Google Calendar can import provider events and sync local event changes. External webhook endpoints remain backend-only infrastructure.
 
 
 ## Authentication
@@ -55,3 +55,8 @@ The overall CRM UI now uses **Colin** as the primary interface font with system 
 The CRM is now connected to the Banyan Express/MongoDB backend. See `API_INTEGRATION.md` for the screen-to-endpoint map and authentication flow.
 
 Set `VITE_API_BASE_URL` to the backend `/api/v1` URL before running the frontend. No additional frontend dependency is required for the API integration.
+
+
+## Gmail & Google Calendar
+
+For the full local OAuth setup, open `docs/google-gmail-calendar-local-setup.md` in the backend project. Backend credentials belong in the backend `.env`; only the API base URL belongs in the frontend `.env`.

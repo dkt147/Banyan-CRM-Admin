@@ -3,6 +3,7 @@ import { Page, Empty } from "./Dashboard";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import { useAuth } from "../auth/AuthContext";
+import { listenForGoogleOAuth, openGoogleOAuth } from "../utils/googleOAuth";
 const providers = [
   "gmail",
   "whatsapp",
@@ -25,6 +26,8 @@ export default function Integrations() {
       config: {},
     }),
     [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [connectingGoogle, setConnectingGoogle] = useState(false);
   async function load() {
     try {
       const r = await request("/integrations", { query: { limit: 100 } });
@@ -35,7 +38,54 @@ export default function Integrations() {
   }
   useEffect(() => {
     load();
+    const params = new URLSearchParams(window.location.search);
+    const oauthResult = params.get("google_oauth");
+    if (oauthResult) {
+      const success = oauthResult === "success";
+      const message = success
+        ? "Google Workspace and Calendar connected successfully."
+        : "Google authorization was cancelled or failed.";
+      if (window.opener && window.opener !== window) {
+        window.opener.postMessage(
+          { type: "banyan-google-oauth-result", success, message },
+          window.location.origin,
+        );
+        window.close();
+      } else if (success) {
+        setNotice(message);
+      } else {
+        setError(message);
+      }
+      params.delete("google_oauth");
+      const query = params.toString();
+      window.history.replaceState(
+        {},
+        document.title,
+        `${window.location.pathname}${query ? `?${query}` : ""}`,
+      );
+    }
   }, []);
+  useEffect(() => listenForGoogleOAuth((result) => {
+    setConnectingGoogle(false);
+    if (result.success) {
+      setError("");
+      setNotice(result.message || "Google Workspace and Calendar connected.");
+      load();
+    } else {
+      setError(result.message || "Google authorization was not completed.");
+    }
+  }), []);
+  async function connectGoogle() {
+    setConnectingGoogle(true);
+    setError("");
+    setNotice("");
+    try {
+      await openGoogleOAuth(request);
+    } catch (e) {
+      setConnectingGoogle(false);
+      setError(e.message || "Could not start Google authorization.");
+    }
+  }
   function open(i) {
     setForm(
       i
@@ -83,12 +133,18 @@ export default function Integrations() {
       title="Integrations"
       kicker="Provider connection records"
       actions={
-        <button className="btn primary" onClick={() => open()}>
-          Add connection
-        </button>
+        <>
+          <button className="btn ghost" onClick={connectGoogle} disabled={connectingGoogle}>
+            {connectingGoogle ? "Opening Google…" : "Connect Google Workspace + Calendar"}
+          </button>
+          <button className="btn primary" onClick={() => open()}>
+            Add connection
+          </button>
+        </>
       }
     >
       {error && <div className="notice error">{error}</div>}
+      {notice && <div className="notice"><b>Google</b><span>{notice}</span></div>}
       <section className="panel table-wrap">
         <table>
           <thead>
@@ -189,9 +245,7 @@ export default function Integrations() {
             </label>
           </div>
           <p className="muted">
-            Provider credentials are intentionally not entered here; this
-            backend stores the connection boundary for later provider-specific
-            integration.
+            Connect Google Workspace and Google Calendar with the button at the top. This record editor is for administration only; it does not authorize a provider or replace OAuth consent.
           </p>
         </Modal>
       )}
