@@ -445,24 +445,21 @@ export default function Companies() {
       {/* FILTER TOOLBAR */}
       {/* -------------------------------------------------- */}
 
-      <div className="toolbar" style={{ gap: 10, flexWrap: "wrap" }}>
+      <div className="toolbar company-filter-toolbar">
         <input
           placeholder="Search companies…"
           value={search}
           onChange={handleSearchChange}
-          style={{
-            minWidth: 240,
-            flex: 1,
-          }}
+          className="company-search-field"
         />
 
-        <select value={status} onChange={handleStatusChange}>
+        <select className="filter-select" value={status} onChange={handleStatusChange}>
           <option value="active">Active companies</option>
           <option value="archived">Archived companies</option>
           <option value="all">All companies</option>
         </select>
 
-        <select value={`${sort}-${order}`} onChange={handleSortChange}>
+        <select className="filter-select sort-select" value={`${sort}-${order}`} onChange={handleSortChange}>
           <option value="createdAt-desc">Newest first</option>
           <option value="createdAt-asc">Oldest first</option>
           <option value="name-asc">Name A–Z</option>

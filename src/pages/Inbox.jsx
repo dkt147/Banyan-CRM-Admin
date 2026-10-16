@@ -28,6 +28,7 @@ export default function Inbox() {
   const [connecting, setConnecting] = useState(false);
   const [gmailConnected, setGmailConnected] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [composeTemplateId, setComposeTemplateId] = useState("");
   const [composeTo, setComposeTo] = useState("");
   const [composeSubject, setComposeSubject] = useState("");
   const [composeBody, setComposeBody] = useState("");
@@ -172,6 +173,7 @@ export default function Inbox() {
       });
       const conversationId = response.data?.conversationId || response.data?.conversation?._id;
       setComposeOpen(false);
+      setComposeTemplateId("");
       setComposeTo(""); setComposeSubject(""); setComposeBody("");
       setNotice("Email sent through Gmail.");
       await load({ preserveSelection: false });
@@ -185,6 +187,7 @@ export default function Inbox() {
 
   return (
     <Page
+      className="inbox-page"
       title="Inbox"
       kicker="Gmail & WhatsApp conversations"
       actions={
@@ -257,11 +260,23 @@ export default function Inbox() {
           </>}
         </section>
       </div>
-      {composeOpen && <Modal title="Compose email" onClose={() => setComposeOpen(false)} actions={<><button className="btn ghost" onClick={() => setComposeOpen(false)}>Cancel</button><button className="btn primary" disabled={sending} onClick={composeSend}>{sending ? "Sending…" : "Send email"}</button></>}>
-        <div className="form-grid">
-          <label>To<input type="email" value={composeTo} onChange={(e) => setComposeTo(e.target.value)} placeholder="person@example.com" /></label>
+      {composeOpen && <Modal className="inbox-compose-modal" title="Compose email" onClose={() => setComposeOpen(false)} actions={<><button className="btn ghost" onClick={() => setComposeOpen(false)}>Cancel</button><button className="btn primary" disabled={sending} onClick={composeSend}>{sending ? "Sending…" : "Send email"}</button></>}>
+        <div className="form-grid inbox-compose-form">
+          <label>To<input type="email" value={composeTo} onChange={(e) => setComposeTo(e.target.value)} placeholder="person@example.com" autoComplete="email" /></label>
           <label>Subject<input value={composeSubject} onChange={(e) => setComposeSubject(e.target.value)} placeholder="Email subject" /></label>
-          <label className="form-span-2">Message<textarea value={composeBody} onChange={(e) => setComposeBody(e.target.value)} placeholder="Write your email…" /></label>
+          <label className="form-span-2">Email template<select value={composeTemplateId} onChange={(e) => {
+            const nextId = e.target.value;
+            setComposeTemplateId(nextId);
+            const template = templates.find((item) => item._id === nextId);
+            if (template) {
+              setComposeSubject(template.subject || "");
+              setComposeBody(template.body || "");
+            }
+          }}>
+            <option value="">Choose a template (optional)</option>
+            {templates.map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}
+          </select></label>
+          <label className="form-span-2">Message<textarea rows="9" value={composeBody} onChange={(e) => setComposeBody(e.target.value)} placeholder="Write your email…" /></label>
         </div>
       </Modal>}
     </Page>

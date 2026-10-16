@@ -2,6 +2,14 @@ import React, { useEffect, useState } from "react";
 import { Page, Empty } from "./Dashboard";
 import Modal from "../components/Modal";
 import { useAuth } from "../auth/AuthContext";
+function responseRows(response) {
+  const data = response?.data;
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(response?.items)) return response.items;
+  return [];
+}
+
 const blank = {
   name: "",
   type: "",
@@ -34,11 +42,11 @@ export default function Documents() {
         request("/deals", { query: { limit: 100 } }),
         request("/agreements", { query: { limit: 100 } }),
       ]);
-      setRows(r.data?.items || []);
-      setContacts(c.data?.items || []);
-      setCompanies(co.data?.items || []);
-      setDeals(d.data?.items || []);
-      setAgreements(a.data?.items || []);
+      setRows(responseRows(r));
+      setContacts(responseRows(c));
+      setCompanies(responseRows(co));
+      setDeals(responseRows(d));
+      setAgreements(responseRows(a));
     } catch (e) {
       setError(e.message);
     }

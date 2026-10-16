@@ -477,27 +477,9 @@ export default function Contacts() {
       )}
 
       {/* FILTER BAR */}
-      <section
-        className="panel"
-        style={{
-          marginBottom: 16,
-          padding: 14,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-end",
-            gap: 12,
-            flexWrap: "wrap",
-          }}
-        >
-          <label
-            style={{
-              minWidth: 210,
-              flex: 1,
-            }}
-          >
+      <section className="panel contacts-filter-panel">
+        <div className="contacts-filter-layout">
+          <label className="filter-field filter-company-field">
             Company
             <select
               value={companyFilter}
@@ -513,11 +495,7 @@ export default function Contacts() {
             </select>
           </label>
 
-          <label
-            style={{
-              minWidth: 160,
-            }}
-          >
+          <label className="filter-field filter-status-field">
             Status
             <select
               value={archiveFilter}
@@ -529,9 +507,11 @@ export default function Contacts() {
             </select>
           </label>
 
-          <button className="btn ghost" onClick={resetFilters}>
-            Reset filters
-          </button>
+          <div className="filter-action-group">
+            <button className="btn ghost" onClick={resetFilters}>
+              Reset filters
+            </button>
+          </div>
         </div>
       </section>
 

@@ -157,7 +157,7 @@ export default function CheckIns() {
             <label>Membership<select value={form.membershipId} onChange={(e) => setForm({ ...form, membershipId: e.target.value })}><option value="">No membership</option>{memberships.map((m) => <option key={m._id} value={m._id}>{m.memberCode || m._id} · {m.status}</option>)}</select></label>
             <label>Checked in<input type="datetime-local" value={form.checkedInAt} onChange={(e) => setForm({ ...form, checkedInAt: e.target.value })} /></label>
             <label>Checked out<input type="datetime-local" value={form.checkedOutAt} onChange={(e) => setForm({ ...form, checkedOutAt: e.target.value })} /></label>
-            <label>Source<input value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} placeholder="manual" /></label>
+            <label>Source<input value={form.source} disabled readOnly aria-describedby="checkin-source-help" /><small id="checkin-source-help" className="form-help">Source is set automatically and cannot be edited.</small></label>
           </div>
         </Modal>
       )}

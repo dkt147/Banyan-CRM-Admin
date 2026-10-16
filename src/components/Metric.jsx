@@ -4,7 +4,7 @@ export default function Metric({ label, value, sub, accent }) {
     <div className="metric">
       <span className="eyebrow">{label}</span>
       <strong className={accent ? "accent" : ""}>{value}</strong>
-      <span className="muted">{sub}</span>
+      {sub ? <span className="muted">{sub}</span> : null}
     </div>
   );
 }

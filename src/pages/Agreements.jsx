@@ -428,7 +428,7 @@ export default function Agreements() {
 
     load(1);
 
-  }, [filters.status, filters.provider]);
+  }, [filters.status, filters.provider, filters.dealId]);
 
 
 
@@ -518,7 +518,7 @@ export default function Agreements() {
 
       fileUrl: agreement.fileUrl || "",
 
-      provider: agreement.provider || "docusign",
+      provider: "docusign",
 
       externalId: agreement.externalId || "",
 
@@ -1095,6 +1095,7 @@ export default function Agreements() {
       title="Agreements"
 
       kicker="Manage documents, signatures and agreement records"
+      className="agreements-page"
 
       actions={
 
@@ -1245,71 +1246,42 @@ export default function Agreements() {
 
 
           <label>
-
             Provider
-
-
-
-            <input
-
-              placeholder="e.g. docusign"
-
+            <select
               value={filters.provider}
-
               onChange={(e) =>
-
                 setFilters((prev) => ({
-
                   ...prev,
-
                   provider: e.target.value,
-
                 }))
-
               }
-
-            />
-
+            >
+              <option value="">All providers</option>
+              <option value="docusign">DocuSign</option>
+            </select>
           </label>
 
 
 
           <label>
-
-            Deal ID
-
-
-
-            <input
-
-              placeholder="Filter by deal ID"
-
+            Deal
+            <select
               value={filters.dealId}
-
               onChange={(e) =>
-
                 setFilters((prev) => ({
-
                   ...prev,
-
                   dealId: e.target.value,
-
                 }))
-
               }
-
-              onKeyDown={(e) => {
-
-                if (e.key === "Enter") {
-
-                  load(1);
-
-                }
-
-              }}
-
-            />
-
+              disabled={loadingRelations}
+            >
+              <option value="">All deals</option>
+              {deals.map((deal) => (
+                <option key={deal._id} value={deal._id}>
+                  {getDealName(deal)}
+                </option>
+              ))}
+            </select>
           </label>
 
 
@@ -1879,7 +1851,7 @@ export default function Agreements() {
       {modal && (
 
         <Modal
-
+          className="agreement-modal"
           title={
 
             editingId
@@ -2081,33 +2053,18 @@ export default function Agreements() {
               <div className="form-grid">
 
                 <label>
-
                   Provider
-
-
-
-                  <input
-
+                  <select
                     value={form.provider}
-
-                    placeholder="docusign"
-
                     onChange={(e) =>
-
                       setForm((prev) => ({
-
                         ...prev,
-
-                        provider:
-
-                          e.target.value,
-
+                        provider: e.target.value,
                       }))
-
                     }
-
-                  />
-
+                  >
+                    <option value="docusign">DocuSign</option>
+                  </select>
                 </label>
 
 

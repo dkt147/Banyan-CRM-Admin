@@ -1,11 +1,11 @@
 import React from "react";
-export default function Modal({ title, children, onClose, actions }) {
+export default function Modal({ title, children, onClose, actions, className = "" }) {
   return (
     <div
       className="modal-backdrop"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="modal">
+      <div className={`modal ${className}`.trim()}>
         <div className="modal-head">
           <h3>{title}</h3>
           <button className="icon-btn" onClick={onClose}>

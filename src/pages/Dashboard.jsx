@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Metric from "../components/Metric";
 import Badge from "../components/Badge";
 import { useAuth } from "../auth/AuthContext";
 
 export default function Dashboard() {
   const { user, request } = useAuth();
+  const navigate = useNavigate();
   const [overview, setOverview] = useState(null);
   const [pipeline, setPipeline] = useState([]);
   const [revenue, setRevenue] = useState([]);
@@ -41,6 +43,28 @@ export default function Dashboard() {
     ? revenue[revenue.length - 1]?.revenue || 0
     : 0;
 
+  const sectionProps = (path, label) => ({
+    className: "panel dashboard-clickable",
+    role: "link",
+    tabIndex: 0,
+    "aria-label": `Open ${label}`,
+    onClick: () => navigate(path),
+    onKeyDown: (event) => {
+      if (
+        event.target === event.currentTarget &&
+        (event.key === "Enter" || event.key === " ")
+      ) {
+        event.preventDefault();
+        navigate(path);
+      }
+    },
+  });
+
+  const openHealthItem = (event, path) => {
+    event.stopPropagation();
+    navigate(path);
+  };
+
   return (
     <Page title={`Good morning, ${firstName}`} kicker="Live workspace overview">
       {error && (
@@ -50,31 +74,58 @@ export default function Dashboard() {
         </div>
       )}
       <div className="metrics four">
-        <Metric
-          label="Open pipeline"
-          value={currency(overview?.openPipeline?.value)}
-          sub={`${overview?.openDeals ?? 0} open deals`}
-        />
-        <Metric
-          label="Needs action"
-          value={overview?.tasksNeedingAction ?? 0}
-          sub={`${overview?.unreadMessages ?? 0} unread messages`}
-          accent
-        />
-        <Metric
-          label="Awaiting invoices"
-          value={currency(overview?.awaitingInvoices?.total)}
-          sub={`${overview?.awaitingInvoices?.count ?? 0} invoices`}
-        />
-        <Metric
-          label="Active memberships"
-          value={overview?.activeMemberships ?? 0}
-          sub={`${overview?.enrolledLoyaltyClients ?? 0} loyalty accounts`}
-        />
+        <button
+          type="button"
+          className="metric-link"
+          aria-label="Open pipelines"
+          onClick={() => navigate("/pipelines")}
+        >
+          <Metric
+            label="Open pipeline"
+            value={currency(overview?.openPipeline?.value)}
+            sub={`${overview?.openDeals ?? 0} open deals`}
+          />
+        </button>
+        <button
+          type="button"
+          className="metric-link"
+          aria-label="Open tasks needing action"
+          onClick={() => navigate("/tasks")}
+        >
+          <Metric
+            label="Needs action"
+            value={`${overview?.tasksNeedingAction ?? 0} tasks`}
+            accent
+          />
+        </button>
+        <button
+          type="button"
+          className="metric-link"
+          aria-label="Open invoices"
+          onClick={() => navigate("/invoices")}
+        >
+          <Metric
+            label="Awaiting invoices"
+            value={currency(overview?.awaitingInvoices?.total)}
+            sub={`${overview?.awaitingInvoices?.count ?? 0} invoices`}
+          />
+        </button>
+        <button
+          type="button"
+          className="metric-link"
+          aria-label="Open memberships"
+          onClick={() => navigate("/memberships")}
+        >
+          <Metric
+            label="Active memberships"
+            value={overview?.activeMemberships ?? 0}
+            sub={`${overview?.enrolledLoyaltyClients ?? 0} loyalty accounts`}
+          />
+        </button>
       </div>
 
       <div className="two-col">
-        <section className="panel">
+        <section {...sectionProps("/pipelines", "pipeline value by stage")}>
           <SectionTitle
             title="Pipeline value by stage"
             note="Live from open deals"
@@ -101,7 +152,7 @@ export default function Dashboard() {
             </div>
           )}
         </section>
-        <section className="panel">
+        <section {...sectionProps("/tasks", "today's task queue")}>
           <SectionTitle
             title="Today's queue"
             note={`${overview?.tasksNeedingAction ?? 0} open tasks`}
@@ -122,7 +173,7 @@ export default function Dashboard() {
       </div>
 
       <div className="three-col">
-        <section className="panel">
+        <section {...sectionProps("/inbox", "inbox")}>
           <SectionTitle
             title="Inbox"
             note={`${overview?.unreadMessages ?? 0} unread`}
@@ -145,7 +196,7 @@ export default function Dashboard() {
             ))
           )}
         </section>
-        <section className="panel">
+        <section {...sectionProps("/payments", "revenue and payments")}>
           <SectionTitle title="Revenue" note="Latest paid month" />
           <div className="mix">
             <div>
@@ -163,25 +214,41 @@ export default function Dashboard() {
               ))}
           </div>
         </section>
-        <section className="panel">
+        <section {...sectionProps("/workspace", "workspace health")}>
           <SectionTitle title="Workspace health" />
           <div className="mix">
-            <div>
+            <button
+              type="button"
+              className="mix-link"
+              onClick={(event) => openHealthItem(event, "/deal")}
+            >
               <b>Open deals</b>
               <span>{overview?.openDeals ?? 0}</span>
-            </div>
-            <div>
+            </button>
+            <button
+              type="button"
+              className="mix-link"
+              onClick={(event) => openHealthItem(event, "/tasks")}
+            >
               <b>Tasks needing action</b>
               <span>{overview?.tasksNeedingAction ?? 0}</span>
-            </div>
-            <div>
+            </button>
+            <button
+              type="button"
+              className="mix-link"
+              onClick={(event) => openHealthItem(event, "/invoices")}
+            >
               <b>Awaiting invoices</b>
               <span>{overview?.awaitingInvoices?.count ?? 0}</span>
-            </div>
-            <div>
+            </button>
+            <button
+              type="button"
+              className="mix-link"
+              onClick={(event) => openHealthItem(event, "/loyalty")}
+            >
               <b>Enrolled loyalty clients</b>
               <span>{overview?.enrolledLoyaltyClients ?? 0}</span>
-            </div>
+            </button>
           </div>
         </section>
       </div>
@@ -189,9 +256,9 @@ export default function Dashboard() {
   );
 }
 
-export function Page({ title, kicker, actions, children }) {
+export function Page({ title, kicker, actions, children, className = "" }) {
   return (
-    <div className="page">
+    <div className={`page ${className}`.trim()}>
       <div className="page-head">
         <div>
           <span className="eyebrow">{kicker}</span>

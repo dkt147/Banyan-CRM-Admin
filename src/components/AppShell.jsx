@@ -10,8 +10,10 @@ const SIDEBAR_GROUPS = [
     label: "CRM",
     itemKeys: [
       "contacts",
-      "companies",
+      "pipelines",
+      "pipeline",
       "deals",
+      "deal",
       "leads",
       "tasks",
     ],
@@ -162,6 +164,7 @@ export default function AppShell({ children }) {
   const [board, setBoard] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState({});
 
   const active = loc.pathname.split("/")[1] || "dashboard";
@@ -364,14 +367,6 @@ export default function AppShell({ children }) {
           </div>
 
           <div className="top-actions">
-            <button
-              type="button"
-              className="search"
-            >
-              <Icon name="MagnifyingGlass" />
-              Search
-            </button>
-
             <div className="notification-wrap">
               <button
                 type="button"
@@ -441,7 +436,48 @@ export default function AppShell({ children }) {
               )}
             </div>
 
-            <span className="avatar">{initials}</span>
+            <div className="profile-wrap">
+              <button
+                type="button"
+                className="profile-button"
+                onClick={() => setShowProfile((value) => !value)}
+                aria-label="Open profile menu"
+                aria-expanded={showProfile}
+                title="Profile"
+              >
+                <span className="avatar">{initials}</span>
+                <span className="profile-button-label">Profile</span>
+              </button>
+              {showProfile && (
+                <div className="profile-popover">
+                  <div className="profile-popover-heading">
+                    <b>{displayName}</b>
+                    <span>{user?.email || "Signed-in user"}</span>
+                    <small>{user?.jobTitle || user?.role || "CRM user"}</small>
+                  </div>
+                  <button
+                    type="button"
+                    className="profile-menu-action"
+                    onClick={() => {
+                      setShowProfile(false);
+                      nav("/workspace");
+                    }}
+                  >
+                    Workspace settings
+                  </button>
+                  <button
+                    type="button"
+                    className="profile-menu-action"
+                    onClick={() => {
+                      setShowProfile(false);
+                      logout();
+                    }}
+                  >
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 

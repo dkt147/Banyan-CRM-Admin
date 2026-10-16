@@ -31,29 +31,33 @@ export default function Workspace() {
     <Page
       title="Workspace settings"
       kicker="Workspace and organization configuration"
+      className="workspace-page"
     >
-      <section className="panel">
+      <section className="panel workspace-panel">
         <SectionTitle
           title="Workspace profile"
           note={`Signed in as ${user?.email || ""}`}
         />
         {error && <div className="notice error">{error}</div>}
         {saved && <div className="notice">Workspace saved.</div>}
-        <div className="form-grid">
+        <div className="form-grid workspace-form-grid">
           <Field l="Name" k="name" f={form} s={setForm} />
           <Field l="Slug" k="slug" f={form} s={setForm} />
           <Field l="Timezone" k="timezone" f={form} s={setForm} />
           <Field l="Currency" k="currency" f={form} s={setForm} />
           <Field l="Logo URL" k="logoUrl" f={form} s={setForm} />
         </div>
-        <label>
+        <label className="workspace-description-field">
           Description
           <textarea
+            rows={5}
             value={form.description || ""}
+            placeholder="Add a short description of your workspace and organization…"
             onChange={(e) => setForm({ ...form, description: e.target.value })}
           />
+          <small className="form-help">This description helps identify your workspace.</small>
         </label>
-        <div className="actions">
+        <div className="actions workspace-save-actions">
           <button className="btn primary" onClick={save}>
             Save workspace
           </button>
