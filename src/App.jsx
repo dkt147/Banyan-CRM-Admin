@@ -27,6 +27,7 @@ import AuditLogs from "./pages/AuditLogs";
 import Integrations from "./pages/Integrations";
 import Notifications from "./pages/Notifications";
 import Workspace from "./pages/Workspace";
+import PublicInvoicePayment from "./pages/PublicInvoicePayment";
 
 function CRMRoutes() {
   return (
@@ -69,6 +70,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/pay/:token" element={<PublicInvoicePayment />} />
       <Route path="*" element={<CRMRoutes />} />
     </Routes>
   );

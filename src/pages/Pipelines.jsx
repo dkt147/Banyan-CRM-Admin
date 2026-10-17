@@ -328,6 +328,31 @@ const PIPELINE_STYLES = `
     color: #888;
   }
 
+  .deal-outcome-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 12px 0 8px;
+  }
+
+  .deal-outcome-actions .btn {
+    width: 100%;
+    justify-content: center;
+    white-space: nowrap;
+  }
+
+  .deal-outcome-actions .deal-mark-lost {
+    border-color: #dfb5b5;
+    color: #9b2c2c;
+  }
+
+  .deal-outcome-hint {
+    margin: 0 0 16px;
+    color: #777;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
   .pipeline-no-stages {
     padding: 20px 0;
   }
@@ -1593,6 +1618,9 @@ export default function Pipelines() {
 }
 
 function DealDrawer({ deal, stages, onMove, onClose }) {
+  const wonStage = stages.find((stage) => stage.isClosedWon && !stage.isClosedLost);
+  const lostStage = stages.find((stage) => stage.isClosedLost && !stage.isClosedWon);
+
   return (
     <div className="drawer">
       <div className="drawer-head">
@@ -1635,6 +1663,35 @@ function DealDrawer({ deal, stages, onMove, onClose }) {
 
           <dd>{deal.source || "—"}</dd>
         </dl>
+
+        <SectionTitle title="Close outcome" />
+        <div className="deal-outcome-actions">
+          <button
+            type="button"
+            className="btn primary"
+            disabled={!wonStage || deal.status === "won"}
+            onClick={() => wonStage && onMove(deal, wonStage._id)}
+          >
+            {deal.status === "won" ? "Marked Won" : "Mark Won"}
+          </button>
+          <button
+            type="button"
+            className="btn ghost deal-mark-lost"
+            disabled={!lostStage || deal.status === "lost"}
+            onClick={() => lostStage && onMove(deal, lostStage._id)}
+          >
+            {deal.status === "lost" ? "Marked Lost" : "Mark Lost"}
+          </button>
+        </div>
+        {(!wonStage || !lostStage) && (
+          <p className="deal-outcome-hint">
+            {!wonStage && !lostStage
+              ? "Configure one Closed Won stage and one Closed Lost stage for this pipeline to enable these actions."
+              : !wonStage
+                ? "Configure a Closed Won stage for this pipeline to enable Mark Won."
+                : "Configure a Closed Lost stage for this pipeline to enable Mark Lost."}
+          </p>
+        )}
 
         <SectionTitle title="Move stage" />
 

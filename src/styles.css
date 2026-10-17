@@ -2964,3 +2964,59 @@ select:focus-visible {
   background: #eef2ee;
   color: var(--green);
 }
+
+
+/* Public invoice payment page */
+.public-payment-page {
+  min-height: 100vh;
+  padding: 32px 16px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: #f3f2f2;
+  color: #201e1d;
+}
+.public-payment-card {
+  width: 100%;
+  max-width: 620px;
+  margin: 24px auto;
+  padding: 30px;
+  background: #f8f4f4;
+  border: 1px solid rgba(32, 30, 29, 0.12);
+  box-shadow: 0 12px 40px rgba(32, 30, 29, 0.06);
+}
+.public-payment-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(32, 30, 29, 0.12);
+  color: #243b2a;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+}
+.public-payment-brand img { width: 30px; height: 30px; object-fit: contain; }
+.public-payment-state { padding: 26px 0 18px; }
+.public-payment-state h1 { margin: 8px 0 10px; font-size: clamp(27px, 5vw, 36px); line-height: 1.1; }
+.public-payment-state p { color: #605d5d; font-size: 14px; line-height: 1.6; margin: 0; }
+.public-invoice-details { border: 1px solid rgba(32, 30, 29, 0.12); background: #fffdfc; }
+.public-invoice-details > div { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding: 15px 17px; border-bottom: 1px solid rgba(32, 30, 29, 0.08); }
+.public-invoice-details > div:last-child { border-bottom: 0; }
+.public-invoice-details span { color: #7d7979; font-size: 13px; }
+.public-invoice-details strong { max-width: 65%; text-align: right; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.public-invoice-details .public-invoice-total { align-items: center; background: #f3f2f2; }
+.public-invoice-total span { color: #201e1d; font-weight: 600; }
+.public-invoice-total strong { color: #243b2a; font-size: 23px; }
+.public-invoice-status { text-transform: capitalize; }
+.public-pay-button { width: 100%; margin-top: 20px; min-height: 48px; font-size: 15px; }
+.public-payment-footnote { color: #7d7979; text-align: center; font-size: 12px; line-height: 1.6; margin: 13px 0 0; }
+.public-paid-note { margin-top: 20px; padding: 14px; text-align: center; background: #e8efe8; color: #243b2a; font-weight: 600; }
+.public-paid-note span { margin-right: 6px; }
+.public-payment-footer { padding-top: 24px; margin-top: 26px; border-top: 1px solid rgba(32, 30, 29, 0.12); color: #7d7979; text-align: center; font-size: 11px; letter-spacing: 0.04em; }
+@media (max-width: 560px) {
+  .public-payment-page { padding: 12px; }
+  .public-payment-card { margin: 8px auto; padding: 20px 16px; }
+  .public-invoice-details > div { padding: 13px 12px; gap: 12px; }
+  .public-invoice-details strong { max-width: 60%; }
+}

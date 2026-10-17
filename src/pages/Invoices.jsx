@@ -249,6 +249,7 @@ export default function Invoices() {
 
   const [stripeNotice, setStripeNotice] = useState("");
   const [payingInvoiceId, setPayingInvoiceId] = useState("");
+  const [paymentLinks, setPaymentLinks] = useState({});
 
   const [formError, setFormError] = useState("");
 
@@ -906,35 +907,52 @@ export default function Invoices() {
 
 
 
-  async function payWithStripe(invoice) {
+  async function createOrCopyPaymentLink(invoice) {
     if (!invoice?._id || payingInvoiceId) return;
+
+    const existingLink = paymentLinks[invoice._id];
+    if (existingLink) {
+      try {
+        await navigator.clipboard.writeText(existingLink);
+        setStripeNotice(`Payment link copied for invoice ${invoice.invoiceNumber || invoice._id}.`);
+      } catch {
+        window.prompt("Copy this public invoice payment link:", existingLink);
+      }
+      return;
+    }
 
     try {
       setError("");
       setStripeNotice("");
       setPayingInvoiceId(invoice._id);
-
-      const response = await request("/payments/stripe/checkout-sessions", {
+      const response = await request(`/invoices/${invoice._id}/payment-link`, {
         method: "POST",
-        body: { invoiceId: invoice._id },
+        body: {},
       });
-
-      const checkoutUrl = response?.data?.checkoutUrl;
-      if (!checkoutUrl) {
-        throw new Error("Stripe did not return a Checkout URL. Check the backend Stripe configuration.");
+      const data = response?.data?.data || response?.data || response;
+      let paymentUrl = data?.paymentUrl || data?.publicUrl || data?.url;
+      if (!paymentUrl && data?.token) {
+        paymentUrl = `${window.location.origin}/pay/${encodeURIComponent(data.token)}`;
       }
-
-      const parsedCheckoutUrl = new URL(checkoutUrl);
-      if (
-        parsedCheckoutUrl.protocol !== "https:" ||
-        parsedCheckoutUrl.hostname !== "checkout.stripe.com"
-      ) {
-        throw new Error("The backend returned an invalid Stripe Checkout URL.");
+      if (!paymentUrl) {
+        throw new Error("The backend did not return a public payment link. Implement POST /invoices/:id/payment-link in the backend.");
       }
-
-      window.location.assign(parsedCheckoutUrl.toString());
+      const parsedUrl = new URL(paymentUrl, window.location.origin);
+      if (parsedUrl.protocol !== "https:" && parsedUrl.hostname !== "localhost" && parsedUrl.hostname !== "127.0.0.1") {
+        throw new Error("The backend returned an invalid payment link.");
+      }
+      const normalizedUrl = parsedUrl.toString();
+      setPaymentLinks((current) => ({ ...current, [invoice._id]: normalizedUrl }));
+      try {
+        await navigator.clipboard.writeText(normalizedUrl);
+        setStripeNotice(`Public payment link created and copied for invoice ${invoice.invoiceNumber || invoice._id}. Send it to your customer.`);
+      } catch {
+        setStripeNotice(`Public payment link created for invoice ${invoice.invoiceNumber || invoice._id}. Copy the link from the prompt and send it to your customer.`);
+        window.prompt("Copy this public invoice payment link:", normalizedUrl);
+      }
     } catch (e) {
-      setError(e.message || "Could not start Stripe Checkout.");
+      setError(e.message || "Could not create the public payment link.");
+    } finally {
       setPayingInvoiceId("");
     }
   }
@@ -1247,10 +1265,14 @@ export default function Invoices() {
                     {["awaiting", "overdue"].includes(invoice.status) && (
                       <button
                         className="btn primary"
-                        onClick={() => payWithStripe(invoice)}
+                        onClick={() => createOrCopyPaymentLink(invoice)}
                         disabled={Boolean(payingInvoiceId)}
                       >
-                        {payingInvoiceId === invoice._id ? "Opening Stripe..." : "Pay with Stripe"}
+                        {payingInvoiceId === invoice._id
+                          ? "Creating link..."
+                          : paymentLinks[invoice._id]
+                            ? "Copy payment link"
+                            : "Create payment link"}
                       </button>
                     )}
 
