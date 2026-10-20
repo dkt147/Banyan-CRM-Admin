@@ -3,157 +3,14 @@ import { useLocation, useNavigate } from "react-router-dom";
 import Icon from "./Icon";
 import { navItems } from "../data/mock";
 import { useAuth } from "../auth/AuthContext";
+import { longDate } from "../utils/dates";
 
-const SIDEBAR_GROUPS = [
-  {
-    key: "crm",
-    label: "CRM",
-    itemKeys: [
-      "contacts",
-      "pipelines",
-      "pipeline",
-      "deals",
-      "deal",
-      "leads",
-      "tasks",
-    ],
-  },
-  {
-    key: "payments",
-    label: "Payments",
-    itemKeys: [
-      "invoices",
-      "payments",
-      "memberships",
-      "membership-plans",
-      "loyalty",
-      "subscriptions",
-      "transactions",
-      "billing",
-    ],
-  },
-  {
-    key: "communication",
-    label: "Communication",
-    itemKeys: [
-      "inbox",
-      "emails",
-      "email",
-      "messages",
-      "whatsapp",
-    ],
-  },
-  {
-    key: "calendar",
-    label: "Calendar & Scheduling",
-    itemKeys: [
-      "calendar",
-      "bookings",
-      "appointments",
-      "events",
-    ],
-  },
-  {
-    key: "documents",
-    label: "Documents",
-    itemKeys: [
-      "agreements",
-      "documents",
-      "templates",
-    ],
-  },
-  {
-    key: "catalog",
-    label: "Products & Services",
-    itemKeys: [
-      "products",
-      "services",
-      "plans",
-      "catalog",
-    ],
-  },
-  {
-    key: "reports",
-    label: "Reports & Analytics",
-    itemKeys: [
-      "reports",
-      "analytics",
-    ],
-  },
-  {
-    key: "settings",
-    label: "Settings & Integrations",
-    itemKeys: [
-      "integrations",
-      "settings",
-      "users",
-      "roles",
-      "team",
-    ],
-  },
+const SIDEBAR_NAV_KEYS = [
+  "dashboard", "tasks", "inbox", "pipelines", "deal", "contact",
+  "templates", "calendar", "agreements", "invoices", "members", "automation",
 ];
 
-function normalizeKey(key) {
-  return String(key || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-}
-
-function buildSidebarNavigation(items) {
-  const dashboardItem = items.find(
-    ([key]) => normalizeKey(key) === "dashboard"
-  );
-
-  const claimedKeys = new Set();
-
-  if (dashboardItem) {
-    claimedKeys.add(normalizeKey(dashboardItem[0]));
-  }
-
-  const groups = SIDEBAR_GROUPS.map((group) => {
-    const allowedKeys = new Set(
-      group.itemKeys.map(normalizeKey)
-    );
-
-    const children = items.filter(([key]) => {
-      const normalized = normalizeKey(key);
-
-      if (
-        claimedKeys.has(normalized) ||
-        !allowedKeys.has(normalized)
-      ) {
-        return false;
-      }
-
-      claimedKeys.add(normalized);
-      return true;
-    });
-
-    return {
-      ...group,
-      children,
-    };
-  }).filter((group) => group.children.length > 0);
-
-  const remainingItems = items.filter(
-    ([key]) => !claimedKeys.has(normalizeKey(key))
-  );
-
-  if (remainingItems.length > 0) {
-    groups.push({
-      key: "other",
-      label: "Other",
-      children: remainingItems,
-    });
-  }
-
-  return {
-    dashboardItem,
-    groups,
-  };
-}
-
-const sidebarNavigation = buildSidebarNavigation(navItems);
+const SIDEBAR_LABELS = { deal: "Deal", contact: "Contacts" };
 
 export default function AppShell({ children }) {
   const nav = useNavigate();
@@ -165,24 +22,28 @@ export default function AppShell({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState({});
+  const [showSidebarMenu, setShowSidebarMenu] = useState(false);
+  const [overdueFollowUps, setOverdueFollowUps] = useState(null);
+  const [calendarWeek, setCalendarWeek] = useState(() => isoWeekNumber(new Date()));
 
   const active = loc.pathname.split("/")[1] || "dashboard";
+  const dashboardTopbar = active === "dashboard" || active === "calendar";
 
   const go = (key) => nav("/" + key);
 
-  const activeGroup = sidebarNavigation.groups.find((group) =>
-    group.children.some(([key]) => key === active)
-  );
+  // Dashboard-style actions are shared by Dashboard and Availability; both reach the dashboard's global handlers.
+  function openFromTopbar(eventName) {
+    if (active === "dashboard") { window.dispatchEvent(new CustomEvent(eventName)); return; }
+    nav("/dashboard");
+    window.setTimeout(() => window.dispatchEvent(new CustomEvent(eventName)), 120);
+  }
 
   React.useEffect(() => {
-    if (!activeGroup) return;
+    const syncWeek = (event) => setCalendarWeek(event.detail?.week ?? isoWeekNumber(new Date()));
+    window.addEventListener("banyan:calendar-window", syncWeek);
+    return () => window.removeEventListener("banyan:calendar-window", syncWeek);
+  }, []);
 
-    setExpandedGroups((previous) => ({
-      ...previous,
-      [activeGroup.key]: true,
-    }));
-  }, [active, activeGroup]);
 
   React.useEffect(() => {
     request("/notifications", { query: { limit: 10 } })
@@ -199,6 +60,18 @@ export default function AppShell({ children }) {
       .catch(() => {});
   }, [request]);
 
+  React.useEffect(() => {
+    request("/tasks/summary")
+      .then((response) => setOverdueFollowUps(Number(response?.data?.overdue ?? 0)))
+      .catch(() => setOverdueFollowUps(null));
+  }, [request]);
+
+  React.useEffect(() => {
+    const syncTaskSummary = (event) => setOverdueFollowUps(Number(event.detail?.overdue ?? 0));
+    window.addEventListener("banyan:task-summary-updated", syncTaskSummary);
+    return () => window.removeEventListener("banyan:task-summary-updated", syncTaskSummary);
+  }, []);
+
   const displayName = user?.name || "Banyan User";
 
   const initials =
@@ -210,30 +83,19 @@ export default function AppShell({ children }) {
       .join("")
       .toUpperCase() || "BU";
 
-  function toggleGroup(groupKey) {
-    setExpandedGroups((previous) => ({
-      ...previous,
-      [groupKey]: !previous[groupKey],
-    }));
-  }
-
-  function renderNavigationItem(item, isChild = false) {
-    const [key, label, icon] = item;
-
+  function renderNavigationItem(item) {
+    const [key, rawLabel, icon] = item;
+    const label = SIDEBAR_LABELS[key] || rawLabel;
     return (
       <button
         key={key}
         type="button"
-        className={[
-          isChild ? "nav-child" : "nav-standalone",
-          active === key ? "active" : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
+        className={["nav-standalone", active === key ? "active" : ""].filter(Boolean).join(" ")}
         onClick={() => go(key)}
         title={label}
+        aria-current={active === key ? "page" : undefined}
       >
-        <Icon name={icon} />
+        <Icon name={icon} size={18} />
         <span>{label}</span>
       </button>
     );
@@ -242,85 +104,12 @@ export default function AppShell({ children }) {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand">
+        <div className="brand" aria-label="Banyan Workspace CRM">
           <img src="/banyan-logo.svg" alt="Banyan" />
-
-          <div>
-            <strong>BANYAN</strong>
-            <span>WORKSPACE CRM</span>
-          </div>
         </div>
 
-        <nav className="sidebar-navigation">
-          {sidebarNavigation.dashboardItem &&
-            renderNavigationItem(
-              sidebarNavigation.dashboardItem
-            )}
-
-          {sidebarNavigation.groups.map((group) => {
-            const expanded = Boolean(
-              expandedGroups[group.key]
-            );
-
-            const hasActiveChild = group.children.some(
-              ([key]) => key === active
-            );
-
-            const parentIcon =
-              group.children[0]?.[2];
-
-            return (
-              <div
-                className="nav-group"
-                key={group.key}
-              >
-                <button
-                  type="button"
-                  className={[
-                    "nav-parent",
-                    expanded ? "expanded" : "",
-                    hasActiveChild ? "has-active-child" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  onClick={() => toggleGroup(group.key)}
-                  aria-expanded={expanded}
-                  aria-controls={`nav-submenu-${group.key}`}
-                >
-                  <span className="nav-parent-label">
-                    {parentIcon && (
-                      <Icon name={parentIcon} />
-                    )}
-
-                    <span>{group.label}</span>
-                  </span>
-
-                  <span
-                    className={[
-                      "nav-chevron",
-                      expanded ? "expanded" : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" ")}
-                    aria-hidden="true"
-                  >
-                    ▾
-                  </span>
-                </button>
-
-                {expanded && (
-                  <div
-                    className="nav-submenu"
-                    id={`nav-submenu-${group.key}`}
-                  >
-                    {group.children.map((item) =>
-                      renderNavigationItem(item, true)
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        <nav className="sidebar-navigation" aria-label="Main navigation">
+          {navItems.filter(([key]) => SIDEBAR_NAV_KEYS.includes(key)).map((item) => renderNavigationItem(item))}
         </nav>
 
         <div className="sidebar-bottom">
@@ -333,152 +122,130 @@ export default function AppShell({ children }) {
             <span>All screens</span>
           </button>
 
-          <div className="user-mini">
-            <span className="avatar">{initials}</span>
-
-            <div>
-              <b>{displayName}</b>
-              <small>
-                {user?.jobTitle || user?.role || "CRM user"}
-              </small>
-            </div>
+          <div className="sidebar-avatar-wrap">
+            <button
+              type="button"
+              className="sidebar-avatar-button"
+              onClick={() => setShowSidebarMenu((value) => !value)}
+              aria-label="Account menu"
+              aria-expanded={showSidebarMenu}
+              title={displayName}
+            >
+              <span className="avatar">{initials}</span>
+            </button>
+            {showSidebarMenu && (
+              <div className="sidebar-menu" role="menu">
+                <div className="sidebar-menu-head">
+                  <b>{displayName}</b>
+                  <small>{user?.email || user?.jobTitle || user?.role || "CRM user"}</small>
+                </div>
+                <button type="button" role="menuitem" onClick={() => { setShowSidebarMenu(false); nav("/workspace"); }}>Workspace settings</button>
+                <button type="button" role="menuitem" onClick={() => { setShowSidebarMenu(false); logout(); }}>Sign out</button>
+              </div>
+            )}
           </div>
-
-          <button
-            type="button"
-            className="sidebar-logout"
-            onClick={logout}
-          >
-            <Icon name="SignOut" size={17} />
-            <span>Sign out</span>
-          </button>
         </div>
       </aside>
 
       <main className="main">
-        <header className="topbar">
-          <div>
-            <div className="crumb">
-              BANYAN CRM /{" "}
-              {navItems.find(
-                (item) => item[0] === active
-              )?.[3] || "All screens"}
-            </div>
+        <header className={`topbar ${dashboardTopbar ? "topbar-dashboard" : ""} ${active === "calendar" ? "topbar-calendar" : ""}`}>
+          <div className="topbar-title">
+            <strong>Banyan CRM</strong>
+            <span>{active === "calendar"
+              ? `Availability · week ${calendarWeek}`
+              : active === "dashboard"
+                ? `Overview · ${longDate(new Date(), "Asia/Hong_Kong")}`
+                : `Follow-ups · ${overdueFollowUps === null ? "—" : overdueFollowUps} overdue`}</span>
           </div>
 
-          <div className="top-actions">
-            <div className="notification-wrap">
+          {dashboardTopbar ? (
+            <div className="top-actions dashboard-global-actions">
               <button
                 type="button"
-                className="icon-btn"
-                onClick={() =>
-                  setShowNotifications((value) => !value)
-                }
-                aria-label="Toggle notifications"
-                aria-expanded={showNotifications}
+                className="dashboard-ask-action"
+                onClick={() => openFromTopbar("banyan:dashboard-open-insight")}
               >
-                <Icon name="Bell" />
-
-                {notifications.some((n) => !n.readAt) && (
-                  <i className="notification-dot" />
-                )}
+                <Icon name="Sparkle" size={14} />
+                <span>Ask anything — “deals quiet over 5 days”</span>
               </button>
+              <button type="button" className="btn ghost" onClick={() => nav("/activities")}>Log activity</button>
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() => openFromTopbar("banyan:dashboard-new-deal")}
+              >New deal</button>
+            </div>
+          ) : (
+            <div className="top-actions">
+              <div className="notification-wrap">
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={() => setShowNotifications((value) => !value)}
+                  aria-label="Toggle notifications"
+                  aria-expanded={showNotifications}
+                >
+                  <Icon name="Bell" />
+                  {notifications.some((n) => !n.readAt) && <i className="notification-dot" />}
+                </button>
 
-              {showNotifications && (
-                <div className="notification-popover">
-                  <div className="notification-head">
-                    <b>Notifications</b>
-
-                    <button
-                      type="button"
-                      className="btn ghost"
-                      onClick={async () => {
-                        await request(
-                          "/notifications/read-all",
-                          { method: "PATCH" }
-                        ).catch(() => {});
-
-                        setNotifications((current) =>
-                          current.map((notification) => ({
+                {showNotifications && (
+                  <div className="notification-popover">
+                    <div className="notification-head">
+                      <b>Notifications</b>
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        onClick={async () => {
+                          await request("/notifications/read-all", { method: "PATCH" }).catch(() => {});
+                          setNotifications((current) => current.map((notification) => ({
                             ...notification,
                             readAt: new Date().toISOString(),
-                          }))
-                        );
-                      }}
-                    >
-                      Mark all read
-                    </button>
-                  </div>
-
-                  {notifications.length === 0 ? (
-                    <div className="empty-state">
-                      No notifications.
+                          })));
+                        }}
+                      >Mark all read</button>
                     </div>
-                  ) : (
-                    notifications.map((notification) => (
+                    {notifications.length === 0 ? (
+                      <div className="empty-state">No notifications.</div>
+                    ) : notifications.map((notification) => (
                       <div
-                        className={[
-                          "notification-item",
-                          notification.readAt ? "" : "unread",
-                        ]
-                          .filter(Boolean)
-                          .join(" ")}
+                        className={["notification-item", notification.readAt ? "" : "unread"].filter(Boolean).join(" ")}
                         key={notification._id}
                       >
                         <b>{notification.title}</b>
-                        <span>
-                          {notification.body || ""}
-                        </span>
+                        <span>{notification.body || ""}</span>
                       </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="profile-wrap">
-              <button
-                type="button"
-                className="profile-button"
-                onClick={() => setShowProfile((value) => !value)}
-                aria-label="Open profile menu"
-                aria-expanded={showProfile}
-                title="Profile"
-              >
-                <span className="avatar">{initials}</span>
-                <span className="profile-button-label">Profile</span>
-              </button>
-              {showProfile && (
-                <div className="profile-popover">
-                  <div className="profile-popover-heading">
-                    <b>{displayName}</b>
-                    <span>{user?.email || "Signed-in user"}</span>
-                    <small>{user?.jobTitle || user?.role || "CRM user"}</small>
+                    ))}
                   </div>
-                  <button
-                    type="button"
-                    className="profile-menu-action"
-                    onClick={() => {
-                      setShowProfile(false);
-                      nav("/workspace");
-                    }}
-                  >
-                    Workspace settings
-                  </button>
-                  <button
-                    type="button"
-                    className="profile-menu-action"
-                    onClick={() => {
-                      setShowProfile(false);
-                      logout();
-                    }}
-                  >
-                    Sign out
-                  </button>
-                </div>
-              )}
+                )}
+              </div>
+
+              <div className="profile-wrap">
+                <button
+                  type="button"
+                  className="profile-button"
+                  onClick={() => setShowProfile((value) => !value)}
+                  aria-label="Open profile menu"
+                  aria-expanded={showProfile}
+                  title="Profile"
+                >
+                  <span className="avatar">{initials}</span>
+                  <span className="profile-button-label">Profile</span>
+                </button>
+                {showProfile && (
+                  <div className="profile-popover">
+                    <div className="profile-popover-heading">
+                      <b>{displayName}</b>
+                      <span>{user?.email || "Signed-in user"}</span>
+                      <small>{user?.jobTitle || user?.role || "CRM user"}</small>
+                    </div>
+                    <button type="button" className="profile-menu-action" onClick={() => { setShowProfile(false); nav("/workspace"); }}>Workspace settings</button>
+                    <button type="button" className="profile-menu-action" onClick={() => { setShowProfile(false); logout(); }}>Sign out</button>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </header>
 
         {children}
@@ -492,6 +259,13 @@ export default function AppShell({ children }) {
       )}
     </div>
   );
+}
+
+function isoWeekNumber(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
 }
 
 function ScreenBoard({ onClose, go }) {

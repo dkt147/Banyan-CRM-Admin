@@ -70,6 +70,7 @@ export const endpoints = {
   dealMove: (id) => `/deals/${id}/move`,
   activities: () => "/activities",
   tasks: () => "/tasks",
+  taskSummary: () => "/tasks/summary",
   task: (id) => `/tasks/${id}`,
   taskComplete: (id) => `/tasks/${id}/complete`,
   taskSnooze: (id) => `/tasks/${id}/snooze`,

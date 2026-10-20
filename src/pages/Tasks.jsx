@@ -1,6 +1,13 @@
-import React, { useEffect, useState } from "react";
-import { Page, SectionTitle, Empty } from "./Dashboard";
-import Badge from "../components/Badge";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  FunnelSimple,
+  X,
+  Plus,
+  Check,
+  ClockCounterClockwise,
+  Trash,
+} from "@phosphor-icons/react";
+import { Page, Empty } from "./Dashboard";
 import Modal from "../components/Modal";
 import { useAuth } from "../auth/AuthContext";
 
@@ -25,7 +32,6 @@ const EMPTY_FORM = {
   dueAt: "",
   priority: "medium",
 };
-
 const EMPTY_FILTERS = {
   status: "",
   priority: "",
@@ -36,254 +42,255 @@ const EMPTY_FILTERS = {
   from: "",
   to: "",
 };
-
-function formatStatus(status) {
-  if (!status) return "Unknown";
-
-  return status
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function formatPriority(priority) {
-  if (!priority) return "—";
-
-  return priority.charAt(0).toUpperCase() + priority.slice(1);
-}
-
-function getPriorityTone(priority) {
-  if (priority === "urgent") return "warn";
-  if (priority === "high") return "warn";
-  return "";
-}
-
-function getStatusTone(status) {
-  if (status === "completed") return "";
-  if (status === "cancelled") return "warn";
-  if (status === "snoozed") return "warn";
-  if (status === "in_progress") return "";
-  return "";
-}
+const EMPTY_SUMMARY = {
+  overdue: 0,
+  dueToday: 0,
+  thisWeek: 0,
+  dealsGoneQuiet: 0,
+};
 
 function getPersonName(item) {
-  if (!item) return "Unknown";
-
+  if (!item) return "Unknown contact";
   if (item.name) return item.name;
-
-  if (item.firstName || item.lastName) {
+  if (item.firstName || item.lastName)
     return `${item.firstName || ""} ${item.lastName || ""}`.trim();
-  }
-
-  if (item.email) return item.email;
-
-  return item._id || "Unknown";
+  return item.email || "Unknown contact";
 }
 
 function getCompanyName(item) {
-  if (!item) return "Unknown";
-  return item.name || item.legalName || item._id || "Unknown";
+  return item?.name || item?.legalName || "Unknown company";
 }
 
 function getDealName(item) {
-  if (!item) return "Unknown";
-  return item.title || item.name || item._id || "Unknown";
+  return item?.title || item?.name || "Related deal";
+}
+
+function dateKeyInTimezone(value, timeZone = "Asia/Hong_Kong") {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function addCalendarDays(dateKey, days) {
+  const date = new Date(`${dateKey}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function isSameDay(first, second, timeZone) {
+  return (
+    dateKeyInTimezone(first, timeZone) === dateKeyInTimezone(second, timeZone)
+  );
+}
+
+function isActionable(task, now = new Date()) {
+  if (["completed", "cancelled"].includes(task.status)) return false;
+  if (task.status === "snoozed")
+    return Boolean(task.snoozedUntil && new Date(task.snoozedUntil) <= now);
+  return true;
+}
+
+function formatDate(value, options = {}, timeZone = "Asia/Hong_Kong") {
+  if (!value) return "No due date";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "No due date";
+  return new Intl.DateTimeFormat(undefined, { timeZone, ...options }).format(
+    date,
+  );
+}
+
+function formatMoney(value, currency = "HKD") {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "";
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 0,
+    }).format(value);
+  } catch {
+    return `${currency} ${Math.round(value).toLocaleString()}`;
+  }
+}
+
+function getInitialsCount(filters) {
+  return Object.values(filters).filter((value) => value !== "").length;
 }
 
 export default function Tasks() {
   const { request, user } = useAuth();
-
   const [tasks, setTasks] = useState([]);
-
   const [members, setMembers] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [deals, setDeals] = useState([]);
-
+  const [workspaceTimezone, setWorkspaceTimezone] = useState("Asia/Hong_Kong");
   const [filters, setFilters] = useState(EMPTY_FILTERS);
-
-  const [modal, setModal] = useState(null);
-
+  const [filterDraft, setFilterDraft] = useState(EMPTY_FILTERS);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [modal, setModal] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
-
+  const [summary, setSummary] = useState(EMPTY_SUMMARY);
   const [error, setError] = useState("");
-
   const [loading, setLoading] = useState(true);
+  const [loadingSummary, setLoadingSummary] = useState(true);
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [saving, setSaving] = useState(false);
+  const activeFilterCount = useMemo(() => getInitialsCount(filters), [filters]);
 
-  /*
-   * ---------------------------------------------------------
-   * Load tasks
-   * ---------------------------------------------------------
-   */
+  const loadTasks = useCallback(
+    async (customFilters) => {
+      try {
+        setLoading(true);
+        setError("");
+        const query = { page: 1, limit: 100 };
+        Object.entries(customFilters).forEach(([key, value]) => {
+          if (value !== "" && value !== null && value !== undefined)
+            query[key] = value;
+        });
+        const response = await request("/tasks", { query });
+        setTasks(Array.isArray(response?.data) ? response.data : []);
+      } catch (e) {
+        setError(e.message || "Failed to load tasks.");
+        setTasks([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [request],
+  );
 
-  async function loadTasks(customFilters = filters) {
+  const loadSummary = useCallback(async () => {
     try {
-      setLoading(true);
-      setError("");
-
-      const query = {
-        page: 1,
-        limit: 100,
+      setLoadingSummary(true);
+      const response = await request("/tasks/summary");
+      const next = response?.data || {};
+      const normalizedSummary = {
+        overdue: Number.isInteger(next.overdue) ? next.overdue : 0,
+        dueToday: Number.isInteger(next.dueToday) ? next.dueToday : 0,
+        thisWeek: Number.isInteger(next.thisWeek) ? next.thisWeek : 0,
+        dealsGoneQuiet: Number.isInteger(next.dealsGoneQuiet)
+          ? next.dealsGoneQuiet
+          : 0,
       };
-
-      Object.entries(customFilters).forEach(([key, value]) => {
-        if (value !== "" && value !== null && value !== undefined) {
-          query[key] = value;
-        }
-      });
-
-      const response = await request("/tasks", {
-        query,
-      });
-
-      setTasks(Array.isArray(response.data) ? response.data : []);
+      setSummary(normalizedSummary);
+      window.dispatchEvent(
+        new CustomEvent("banyan:task-summary-updated", {
+          detail: normalizedSummary,
+        }),
+      );
     } catch (e) {
-      setError(e.message || "Failed to load tasks.");
-      setTasks([]);
+      setError(
+        (current) => current || e.message || "Failed to load task summary.",
+      );
+      setSummary(EMPTY_SUMMARY);
     } finally {
-      setLoading(false);
+      setLoadingSummary(false);
     }
-  }
+  }, [request]);
 
-  /*
-   * ---------------------------------------------------------
-   * Load dynamic dropdown options
-   * ---------------------------------------------------------
-   */
-
-  async function loadFilterOptions() {
+  const loadFilterOptions = useCallback(async () => {
     try {
       setLoadingOptions(true);
-
       const results = await Promise.allSettled([
         request("/members"),
         request("/companies", {
-          query: {
-            page: 1,
-            limit: 100,
-            isArchived: false,
-          },
+          query: { page: 1, limit: 100, isArchived: false },
         }),
         request("/contacts", {
-          query: {
-            page: 1,
-            limit: 100,
-            isArchived: false,
-          },
+          query: { page: 1, limit: 100, isArchived: false },
         }),
-        request("/deals", {
-          query: {
-            page: 1,
-            limit: 100,
-          },
-        }),
+        request("/deals", { query: { page: 1, limit: 100 } }),
+        request("/workspace"),
       ]);
-
-      const [
-        membersResult,
-        companiesResult,
-        contactsResult,
-        dealsResult,
-      ] = results;
-
-      if (membersResult.status === "fulfilled") {
-        const data = membersResult.value?.data;
-
-        setMembers(Array.isArray(data) ? data : []);
-      }
-
-      if (companiesResult.status === "fulfilled") {
-        const data = companiesResult.value?.data;
-
-        if (Array.isArray(data)) {
-          setCompanies(data);
-        } else if (Array.isArray(data?.items)) {
-          setCompanies(data.items);
-        } else {
-          setCompanies([]);
-        }
-      }
-
-      if (contactsResult.status === "fulfilled") {
-        const data = contactsResult.value?.data;
-
-        if (Array.isArray(data)) {
-          setContacts(data);
-        } else if (Array.isArray(data?.items)) {
-          setContacts(data.items);
-        } else {
-          setContacts([]);
-        }
-      }
-
-      if (dealsResult.status === "fulfilled") {
-        const data = dealsResult.value?.data;
-
-        if (Array.isArray(data)) {
-          setDeals(data);
-        } else if (Array.isArray(data?.items)) {
-          setDeals(data.items);
-        } else {
-          setDeals([]);
+      const unwrap = (result) => {
+        if (result.status !== "fulfilled") return [];
+        const data = result.value?.data;
+        if (Array.isArray(data)) return data;
+        if (Array.isArray(data?.items)) return data.items;
+        return [];
+      };
+      setMembers(unwrap(results[0]));
+      setCompanies(unwrap(results[1]));
+      setContacts(unwrap(results[2]));
+      setDeals(unwrap(results[3]));
+      if (results[4].status === "fulfilled") {
+        const timeZone = results[4].value?.data?.timezone;
+        if (typeof timeZone === "string" && timeZone.trim()) {
+          try {
+            new Intl.DateTimeFormat("en-US", { timeZone }).format(new Date());
+            setWorkspaceTimezone(timeZone);
+          } catch {
+            setWorkspaceTimezone("Asia/Hong_Kong");
+          }
         }
       }
     } catch (e) {
-      setError(e.message || "Failed to load filter options.");
+      setError(
+        (current) => current || e.message || "Failed to load filter options.",
+      );
     } finally {
       setLoadingOptions(false);
     }
-  }
+  }, [request]);
 
   useEffect(() => {
-    loadTasks();
+    loadTasks(EMPTY_FILTERS);
+    loadSummary();
     loadFilterOptions();
-  }, []);
+  }, [loadTasks, loadSummary, loadFilterOptions]);
 
-  /*
-   * ---------------------------------------------------------
-   * Filters
-   * ---------------------------------------------------------
-   */
+  useEffect(() => {
+    if (!filterOpen) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setFilterOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [filterOpen]);
 
   function updateFilter(name, value) {
-    setFilters((current) => ({
-      ...current,
-      [name]: value,
-    }));
+    setFilterDraft((current) => ({ ...current, [name]: value }));
+  }
+
+  function openFilters() {
+    setFilterDraft(filters);
+    setFilterOpen(true);
   }
 
   function applyFilters() {
-    loadTasks(filters);
+    setFilters(filterDraft);
+    setFilterOpen(false);
+    loadTasks(filterDraft);
   }
 
   function clearFilters() {
+    setFilterDraft(EMPTY_FILTERS);
     setFilters(EMPTY_FILTERS);
     loadTasks(EMPTY_FILTERS);
   }
-
-  /*
-   * ---------------------------------------------------------
-   * Create task
-   * ---------------------------------------------------------
-   */
 
   async function create() {
     if (!form.title.trim()) {
       setError("Task title is required.");
       return;
     }
-
     if (!form.dueAt) {
       setError("Due date is required.");
       return;
     }
-
     setSaving(true);
     setError("");
-
     try {
-      const response = await request("/tasks", {
+      await request("/tasks", {
         method: "POST",
         body: {
           ...form,
@@ -291,14 +298,9 @@ export default function Tasks() {
           assignedTo: user?._id,
         },
       });
-
-      setTasks((current) => [
-        response.data,
-        ...current,
-      ]);
-
-      setModal(null);
+      setModal(false);
       setForm(EMPTY_FORM);
+      await Promise.all([loadTasks(filters), loadSummary()]);
     } catch (e) {
       setError(e.message || "Failed to create task.");
     } finally {
@@ -306,644 +308,517 @@ export default function Tasks() {
     }
   }
 
-  /*
-   * ---------------------------------------------------------
-   * Complete / Snooze
-   * ---------------------------------------------------------
-   */
-
   async function action(task, type) {
     try {
       setError("");
-
-      let body = {};
-
-      if (type === "snooze") {
-        body = {
-          until: new Date(
-            Date.now() + 24 * 60 * 60 * 1000,
-          ).toISOString(),
-        };
-      }
-
-      const response = await request(
-        `/tasks/${task._id}/${type}`,
-        {
-          method: "PATCH",
-          body,
-        },
-      );
-
-      setTasks((current) =>
-        current.map((item) =>
-          item._id === task._id
-            ? response.data
-            : item,
-        ),
-      );
+      const body =
+        type === "snooze"
+          ? {
+              snoozedUntil: new Date(
+                Date.now() + 24 * 60 * 60 * 1000,
+              ).toISOString(),
+            }
+          : {};
+      await request(`/tasks/${task._id}/${type}`, { method: "PATCH", body });
+      await Promise.all([loadTasks(filters), loadSummary()]);
     } catch (e) {
       setError(e.message || `Failed to ${type} task.`);
     }
   }
 
-  /*
-   * ---------------------------------------------------------
-   * Delete task
-   * ---------------------------------------------------------
-   */
-
   async function removeTask(task) {
-    if (!window.confirm("Delete this task?")) {
-      return;
-    }
-
+    if (!window.confirm("Delete this task?")) return;
     try {
       setError("");
-
-      await request(`/tasks/${task._id}`, {
-        method: "DELETE",
-      });
-
-      setTasks((current) =>
-        current.filter(
-          (item) => item._id !== task._id,
-        ),
-      );
+      await request(`/tasks/${task._id}`, { method: "DELETE" });
+      await Promise.all([loadTasks(filters), loadSummary()]);
     } catch (e) {
       setError(e.message || "Failed to delete task.");
     }
   }
 
-  /*
-   * ---------------------------------------------------------
-   * Task groups
-   * ---------------------------------------------------------
-   */
+  const groups = useMemo(() => {
+    const now = new Date();
+    const todayKey = dateKeyInTimezone(now, workspaceTimezone);
+    const todayCalendar = new Date(`${todayKey}T00:00:00.000Z`);
+    const daysSinceMonday =
+      todayCalendar.getUTCDay() === 0 ? 6 : todayCalendar.getUTCDay() - 1;
+    const nextMondayKey = addCalendarDays(todayKey, 7 - daysSinceMonday);
+    const tomorrowKey = addCalendarDays(todayKey, 1);
+    const sets = {
+      overdue: [],
+      today: [],
+      thisWeek: [],
+      upcoming: [],
+      completed: [],
+      snoozed: [],
+      cancelled: [],
+    };
 
-  const groups = [
-    "overdue",
-    "today",
-    "upcoming",
-    "completed",
-  ]
-    .map((key) => {
-      return [
-        key,
-        tasks.filter((task) => {
-          const date = new Date(task.dueAt);
-          const now = new Date();
+    tasks.forEach((task) => {
+      if (task.status === "completed") {
+        if (
+          filters.status === "completed" ||
+          (task.completedAt &&
+            isSameDay(task.completedAt, now, workspaceTimezone))
+        ) {
+          sets.completed.push(task);
+        }
+        return;
+      }
+      if (task.status === "cancelled") {
+        if (filters.status === "cancelled") sets.cancelled.push(task);
+        return;
+      }
+      if (task.status === "snoozed" && filters.status === "snoozed") {
+        sets.snoozed.push(task);
+        return;
+      }
+      if (!task.dueAt || !isActionable(task, now)) return;
+      const dueKey = dateKeyInTimezone(task.dueAt, workspaceTimezone);
+      if (dueKey < todayKey) sets.overdue.push(task);
+      else if (dueKey === todayKey) sets.today.push(task);
+      else if (dueKey < nextMondayKey && dueKey >= tomorrowKey)
+        sets.thisWeek.push(task);
+      else if (dueKey >= nextMondayKey) sets.upcoming.push(task);
+    });
 
-          if (key === "completed") {
-            return task.status === "completed";
-          }
+    return [
+      ["overdue", "Overdue", sets.overdue],
+      ["today", "Today", sets.today],
+      ["thisWeek", "This week", sets.thisWeek],
+      ["upcoming", "Upcoming", sets.upcoming],
+      ["snoozed", "Snoozed tasks", sets.snoozed],
+      [
+        "completed",
+        filters.status === "completed" ? "Completed" : "Completed today",
+        sets.completed,
+      ],
+      ["cancelled", "Cancelled", sets.cancelled],
+    ].filter(([, , items]) => items.length > 0);
+  }, [tasks, filters.status, workspaceTimezone]);
 
-          if (
-            task.status === "completed" ||
-            task.status === "cancelled"
-          ) {
-            return false;
-          }
-
-          if (key === "overdue") {
-            return date < now;
-          }
-
-          if (key === "today") {
-            return (
-              date.toDateString() ===
-              now.toDateString()
-            );
-          }
-
-          return (
-            date > now &&
-            date.toDateString() !==
-              now.toDateString()
-          );
-        }),
-      ];
-    })
-    .filter(([, items]) => items.length > 0);
-
-  /*
-   * ---------------------------------------------------------
-   * Render
-   * ---------------------------------------------------------
-   */
+  function renderFilterFields() {
+    return (
+      <div className="task-filter-fields">
+        <label>
+          Status
+          <select
+            value={filterDraft.status}
+            onChange={(e) => updateFilter("status", e.target.value)}
+          >
+            <option value="">All statuses</option>
+            {STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Priority
+          <select
+            value={filterDraft.priority}
+            onChange={(e) => updateFilter("priority", e.target.value)}
+          >
+            <option value="">All priorities</option>
+            {PRIORITY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Assigned to
+          <select
+            value={filterDraft.assignedTo}
+            onChange={(e) => updateFilter("assignedTo", e.target.value)}
+            disabled={loadingOptions}
+          >
+            <option value="">All members</option>
+            {members.map((member) => (
+              <option key={member._id} value={member._id}>
+                {getPersonName(member)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Company
+          <select
+            value={filterDraft.companyId}
+            onChange={(e) => updateFilter("companyId", e.target.value)}
+            disabled={loadingOptions}
+          >
+            <option value="">All companies</option>
+            {companies.map((company) => (
+              <option key={company._id} value={company._id}>
+                {getCompanyName(company)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Contact
+          <select
+            value={filterDraft.contactId}
+            onChange={(e) => updateFilter("contactId", e.target.value)}
+            disabled={loadingOptions}
+          >
+            <option value="">All contacts</option>
+            {contacts.map((contact) => (
+              <option key={contact._id} value={contact._id}>
+                {getPersonName(contact)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Deal
+          <select
+            value={filterDraft.dealId}
+            onChange={(e) => updateFilter("dealId", e.target.value)}
+            disabled={loadingOptions}
+          >
+            <option value="">All deals</option>
+            {deals.map((deal) => (
+              <option key={deal._id} value={deal._id}>
+                {getDealName(deal)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Due from
+          <input
+            type="date"
+            value={filterDraft.from}
+            onChange={(e) => updateFilter("from", e.target.value)}
+          />
+        </label>
+        <label>
+          Due to
+          <input
+            type="date"
+            value={filterDraft.to}
+            onChange={(e) => updateFilter("to", e.target.value)}
+            min={filterDraft.from || undefined}
+          />
+        </label>
+      </div>
+    );
+  }
 
   return (
     <Page
       title="Tasks"
-      kicker={`${tasks.filter(
-        (task) =>
-          task.status !== "completed" &&
-          task.status !== "cancelled",
-      ).length} active tasks`}
+      kicker="Follow-ups"
+      className="tasks-page"
       actions={
-        <button
-          className="btn primary"
-          onClick={() => {
-            setError("");
-            setModal("New task");
-          }}
-        >
-          New task
-        </button>
+        <div className="tasks-titlebar">
+          <p>Every task below was created by a rule, not by hand</p>
+          <div className="tasks-toolbar-actions">
+            <button
+              type="button"
+              className="btn ghost task-filter-trigger"
+              onClick={openFilters}
+              aria-haspopup="dialog"
+              aria-expanded={filterOpen}
+            >
+              <FunnelSimple size={16} weight="regular" />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="task-filter-count">{activeFilterCount}</span>
+              )}
+            </button>
+            <button
+              type="button"
+              className="btn primary"
+              onClick={() => {
+                setError("");
+                setModal(true);
+              }}
+            >
+              <Plus size={15} weight="bold" /> New task
+            </button>
+          </div>
+        </div>
       }
     >
       {error && (
-        <div className="notice error">
+        <div className="notice error task-error">
           <b>Tasks</b>
           <span>{error}</span>
         </div>
       )}
 
-      {/* -------------------------------------------------- */}
-      {/* Filters */}
-      {/* -------------------------------------------------- */}
-
-      <section className="panel">
-        <SectionTitle title="Filters" />
-
-        <div className="form-grid">
-          {/* Status */}
-
-          <label>
-            Status
-            <select
-              value={filters.status}
-              onChange={(e) =>
-                updateFilter(
-                  "status",
-                  e.target.value,
-                )
-              }
-            >
-              <option value="">
-                All statuses
-              </option>
-
-              {STATUS_OPTIONS.map((option) => (
-                <option
-                  key={option.value}
-                  value={option.value}
-                >
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {/* Priority */}
-
-          <label>
-            Priority
-            <select
-              value={filters.priority}
-              onChange={(e) =>
-                updateFilter(
-                  "priority",
-                  e.target.value,
-                )
-              }
-            >
-              <option value="">
-                All priorities
-              </option>
-
-              {PRIORITY_OPTIONS.map((option) => (
-                <option
-                  key={option.value}
-                  value={option.value}
-                >
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {/* Assigned To */}
-
-          <label>
-            Assigned To
-            <select
-              value={filters.assignedTo}
-              onChange={(e) =>
-                updateFilter(
-                  "assignedTo",
-                  e.target.value,
-                )
-              }
-              disabled={loadingOptions}
-            >
-              <option value="">
-                All members
-              </option>
-
-              {members.map((member) => (
-                <option
-                  key={member._id}
-                  value={member._id}
-                >
-                  {getPersonName(member)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {/* Company */}
-
-          <label>
-            Company
-            <select
-              value={filters.companyId}
-              onChange={(e) =>
-                updateFilter(
-                  "companyId",
-                  e.target.value,
-                )
-              }
-              disabled={loadingOptions}
-            >
-              <option value="">
-                All companies
-              </option>
-
-              {companies.map((company) => (
-                <option
-                  key={company._id}
-                  value={company._id}
-                >
-                  {getCompanyName(company)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {/* Contact */}
-
-          <label>
-            Contact
-            <select
-              value={filters.contactId}
-              onChange={(e) =>
-                updateFilter(
-                  "contactId",
-                  e.target.value,
-                )
-              }
-              disabled={loadingOptions}
-            >
-              <option value="">
-                All contacts
-              </option>
-
-              {contacts.map((contact) => (
-                <option
-                  key={contact._id}
-                  value={contact._id}
-                >
-                  {getPersonName(contact)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {/* Deal */}
-
-          <label>
-            Deal
-            <select
-              value={filters.dealId}
-              onChange={(e) =>
-                updateFilter(
-                  "dealId",
-                  e.target.value,
-                )
-              }
-              disabled={loadingOptions}
-            >
-              <option value="">
-                All deals
-              </option>
-
-              {deals.map((deal) => (
-                <option
-                  key={deal._id}
-                  value={deal._id}
-                >
-                  {getDealName(deal)}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {/* From */}
-
-          <label>
-            From
-            <input
-              type="date"
-              value={filters.from}
-              onChange={(e) =>
-                updateFilter(
-                  "from",
-                  e.target.value,
-                )
-              }
-            />
-          </label>
-
-          {/* To */}
-
-          <label>
-            To
-            <input
-              type="date"
-              value={filters.to}
-              onChange={(e) =>
-                updateFilter(
-                  "to",
-                  e.target.value,
-                )
-              }
-            />
-          </label>
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            gap: "8px",
-            marginTop: "16px",
-          }}
-        >
-          <button
-            className="btn primary"
-            onClick={applyFilters}
-          >
-            Apply filters
-          </button>
-
-          <button
-            className="btn ghost"
-            onClick={clearFilters}
-          >
-            Clear filters
-          </button>
-        </div>
+      <section className="task-summary-grid" aria-label="Task summary">
+        <article className="task-summary-card task-summary-overdue">
+          <span>Overdue</span>
+          <strong>{loadingSummary ? "—" : summary.overdue}</strong>
+        </article>
+        <article className="task-summary-card">
+          <span>Due today</span>
+          <strong>{loadingSummary ? "—" : summary.dueToday}</strong>
+        </article>
+        <article className="task-summary-card">
+          <span>This week</span>
+          <strong>{loadingSummary ? "—" : summary.thisWeek}</strong>
+        </article>
+        <article className="task-summary-card">
+          <span>Deals gone quiet</span>
+          <strong>{loadingSummary ? "—" : summary.dealsGoneQuiet}</strong>
+        </article>
       </section>
 
-      {/* -------------------------------------------------- */}
-      {/* Tasks */}
-      {/* -------------------------------------------------- */}
-
       {loading ? (
-        <div className="panel">
-          <span className="muted">
-            Loading tasks...
-          </span>
-        </div>
+        <div className="task-empty-loading">Loading tasks…</div>
       ) : groups.length === 0 ? (
-        <Empty text="No tasks found." />
+        <Empty text="No tasks found for the selected filters." />
       ) : (
-        groups.map(([name, items]) => (
+        groups.map(([key, label, items]) => (
           <section
-            className="task-group"
-            key={name}
+            className={`task-list-section task-section-${key}`}
+            key={key}
           >
-            <SectionTitle
-              title={
-                name.charAt(0).toUpperCase() +
-                name.slice(1)
-              }
-            />
+            <h2 className="task-section-heading">{label}</h2>
+            <div className="task-list-card">
+              {items.map((task) => {
+                const contact = getPersonName(task.contactId);
+                const company = task.companyId
+                  ? getCompanyName(task.companyId)
+                  : "";
+                const deal = task.dealId ? getDealName(task.dealId) : "";
+                const relation = [deal, company, task.contactId ? contact : ""]
+                  .filter(Boolean)
+                  .filter(
+                    (value, index, values) => values.indexOf(value) === index,
+                  )
+                  .join(" · ");
+                const meta = [task.description, relation]
+                  .filter(Boolean)
+                  .join(" · ");
+                const isComplete = task.status === "completed";
+                const dueTime = task.dueAt
+                  ? formatDate(
+                      task.dueAt,
+                      {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        month: "short",
+                        day: "numeric",
+                      },
+                      workspaceTimezone,
+                    )
+                  : "Anytime";
 
-            {items.map((task) => (
-              <div
-                className={`task-card ${
-                  task.status === "completed"
-                    ? "complete"
-                    : ""
-                }`}
-                key={task._id}
-              >
-                <div>
-                  <div className="task-title">
-                    <b>{task.title}</b>
-
-                    <Badge
-                      tone={getPriorityTone(
-                        task.priority,
-                      )}
-                    >
-                      {formatPriority(
-                        task.priority,
-                      )}
-                    </Badge>
-
-                    <Badge
-                      tone={getStatusTone(
-                        task.status,
-                      )}
-                    >
-                      {formatStatus(
-                        task.status,
-                      )}
-                    </Badge>
-                  </div>
-
-                  <span>
-                    {task.description ||
-                      "No description"}{" "}
-                    · due{" "}
-                    {task.dueAt
-                      ? new Date(
-                          task.dueAt,
-                        ).toLocaleString()
-                      : "No due date"}
-                  </span>
-
-                  {/* Related records */}
-
-                  <div
-                    className="muted"
-                    style={{
-                      marginTop: "6px",
-                      fontSize: "13px",
-                    }}
+                return (
+                  <article
+                    className={`task-row ${isComplete ? "is-complete" : ""}`}
+                    key={task._id}
                   >
-                    {task.assignedTo?.name &&
-                      `Assigned to: ${task.assignedTo.name}`}
-
-                    {task.contactId &&
-                      ` · Contact: ${
-                        getPersonName(
-                          task.contactId,
-                        )
-                      }`}
-
-                    {task.companyId &&
-                      ` · Company: ${
-                        getCompanyName(
-                          task.companyId,
-                        )
-                      }`}
-
-                    {task.dealId &&
-                      ` · Deal: ${
-                        getDealName(
-                          task.dealId,
-                        )
-                      }`}
-                  </div>
-                </div>
-
-                <div className="task-actions">
-                  {task.status !== "completed" &&
-                    task.status !== "cancelled" && (
-                      <>
-                        <button
-                          className="btn ghost"
-                          onClick={() =>
-                            action(
-                              task,
-                              "complete",
-                            )
-                          }
-                        >
-                          Complete
-                        </button>
-
-                        <button
-                          className="btn ghost"
-                          onClick={() =>
-                            action(
-                              task,
-                              "snooze",
-                            )
-                          }
-                        >
-                          Snooze
-                        </button>
-                      </>
-                    )}
-
-                  <button
-                    className="btn ghost"
-                    onClick={() =>
-                      removeTask(task)
-                    }
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
+                    <button
+                      type="button"
+                      className={`task-complete-toggle ${isComplete ? "checked" : ""}`}
+                      aria-label={
+                        isComplete ? "Task completed" : `Complete ${task.title}`
+                      }
+                      title={isComplete ? "Completed" : "Mark complete"}
+                      onClick={() => !isComplete && action(task, "complete")}
+                      disabled={isComplete}
+                    >
+                      {isComplete && <Check size={12} weight="bold" />}
+                    </button>
+                    <div className="task-row-content">
+                      <div className="task-row-title-line">
+                        <strong>{task.title}</strong>
+                        {task.priority === "urgent" && (
+                          <span className="task-priority-pill urgent">
+                            Urgent
+                          </span>
+                        )}
+                        {task.priority === "high" && (
+                          <span className="task-priority-pill high">
+                            High priority
+                          </span>
+                        )}
+                      </div>
+                      {meta && <p className="task-row-meta">{meta}</p>}
+                      {task.source === "automation" && (
+                        <p className="task-row-automation">
+                          Auto-created by automation
+                          {task.metadata?.ruleName
+                            ? ` · ${task.metadata.ruleName}`
+                            : ""}
+                        </p>
+                      )}
+                      {task.status === "snoozed" &&
+                        task.snoozedUntil &&
+                        new Date(task.snoozedUntil) > new Date() && (
+                          <p className="task-row-automation">
+                            Snoozed until{" "}
+                            {formatDate(
+                              task.snoozedUntil,
+                              {},
+                              workspaceTimezone,
+                            )}
+                          </p>
+                        )}
+                    </div>
+                    <div className="task-row-side">
+                      <time dateTime={task.dueAt || undefined}>{dueTime}</time>
+                      {!isComplete && task.status !== "cancelled" && (
+                        <div className="task-row-actions">
+                          <button
+                            type="button"
+                            className="btn primary task-action-primary"
+                            onClick={() => action(task, "complete")}
+                          >
+                            Complete
+                          </button>
+                          {key === "overdue" && (
+                            <button
+                              type="button"
+                              className="btn ghost task-action-secondary"
+                              onClick={() => action(task, "snooze")}
+                            >
+                              <ClockCounterClockwise size={13} /> Snooze
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="task-icon-action"
+                            title="Delete task"
+                            aria-label={`Delete ${task.title}`}
+                            onClick={() => removeTask(task)}
+                          >
+                            <Trash size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
           </section>
         ))
       )}
 
-      {/* -------------------------------------------------- */}
-      {/* Create Task Modal */}
-      {/* -------------------------------------------------- */}
+      {filterOpen && (
+        <div
+          className="task-filter-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setFilterOpen(false);
+          }}
+        >
+          <aside
+            className="task-filter-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="task-filter-title"
+          >
+            <header className="task-filter-drawer-head">
+              <div>
+                <span className="eyebrow">Task management</span>
+                <h2 id="task-filter-title">Filters</h2>
+                <p>Refine tasks by status, ownership, records, or due date.</p>
+              </div>
+              <button
+                type="button"
+                className="task-drawer-close"
+                onClick={() => setFilterOpen(false)}
+                aria-label="Close filters"
+              >
+                <X size={18} />
+              </button>
+            </header>
+            <div className="task-filter-drawer-body">
+              {renderFilterFields()}
+            </div>
+            <footer className="task-filter-drawer-footer">
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={clearFilters}
+              >
+                Clear all
+              </button>
+              <button
+                type="button"
+                className="btn primary"
+                onClick={applyFilters}
+              >
+                Apply filters
+              </button>
+            </footer>
+          </aside>
+        </div>
+      )}
 
       {modal && (
         <Modal
           title="New task"
-          onClose={() => setModal(null)}
+          onClose={() => setModal(false)}
           actions={
             <>
               <button
+                type="button"
                 className="btn ghost"
-                onClick={() =>
-                  setModal(null)
-                }
+                onClick={() => setModal(false)}
               >
                 Cancel
               </button>
-
               <button
+                type="button"
                 className="btn primary"
                 disabled={saving}
                 onClick={create}
               >
-                {saving
-                  ? "Saving…"
-                  : "Create task"}
+                {saving ? "Saving…" : "Create task"}
               </button>
             </>
           }
         >
           <label>
             Task title
-
             <input
               value={form.title}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  title: e.target.value,
-                })
-              }
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
               placeholder="Follow up with client"
             />
           </label>
-
           <label>
             Description
-
             <textarea
               value={form.description}
               onChange={(e) =>
-                setForm({
-                  ...form,
-                  description:
-                    e.target.value,
-                })
+                setForm({ ...form, description: e.target.value })
               }
             />
           </label>
-
           <div className="form-grid">
             <label>
               Due
-
               <input
                 type="datetime-local"
                 value={form.dueAt}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    dueAt: e.target.value,
-                  })
-                }
+                onChange={(e) => setForm({ ...form, dueAt: e.target.value })}
               />
             </label>
-
             <label>
               Priority
-
               <select
                 value={form.priority}
-                onChange={(e) =>
-                  setForm({
-                    ...form,
-                    priority:
-                      e.target.value,
-                  })
-                }
+                onChange={(e) => setForm({ ...form, priority: e.target.value })}
               >
-                {PRIORITY_OPTIONS.map(
-                  (option) => (
-                    <option
-                      key={option.value}
-                      value={option.value}
-                    >
-                      {option.label}
-                    </option>
-                  ),
-                )}
+                {PRIORITY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </label>
           </div>
