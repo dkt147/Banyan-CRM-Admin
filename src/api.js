@@ -113,5 +113,7 @@ export const endpoints = {
   dashboardOverview: () => "/dashboard/overview",
   dashboardPipeline: () => "/dashboard/pipeline",
   dashboardRevenue: () => "/dashboard/revenue",
+  assistantStatus: () => "/assistant/status",
+  assistantChat: () => "/assistant/chat",
   webhook: (provider) => `/webhooks/${provider}`,
 };

@@ -4,6 +4,7 @@ import Icon from "./Icon";
 import { navItems } from "../data/mock";
 import { useAuth } from "../auth/AuthContext";
 import { longDate } from "../utils/dates";
+import AssistantPanel from "./AssistantPanel";
 
 const SIDEBAR_NAV_KEYS = [
   "dashboard", "tasks", "inbox", "pipelines", "deal", "contact",
@@ -25,11 +26,26 @@ export default function AppShell({ children }) {
   const [showSidebarMenu, setShowSidebarMenu] = useState(false);
   const [overdueFollowUps, setOverdueFollowUps] = useState(null);
   const [calendarWeek, setCalendarWeek] = useState(() => isoWeekNumber(new Date()));
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [askQuery, setAskQuery] = useState("");
+  const [assistantPrompt, setAssistantPrompt] = useState("");
+  const [assistantLaunchToken, setAssistantLaunchToken] = useState(0);
 
   const active = loc.pathname.split("/")[1] || "dashboard";
   const dashboardTopbar = active === "dashboard" || active === "calendar";
 
   const go = (key) => nav("/" + key);
+
+  function submitAskQuery(event) {
+    event?.preventDefault?.();
+    const question = askQuery.trim();
+    setAssistantOpen(true);
+    if (question) {
+      setAssistantPrompt(question);
+      setAssistantLaunchToken((value) => value + 1);
+      setAskQuery("");
+    }
+  }
 
   // Dashboard-style actions are shared by Dashboard and Availability; both reach the dashboard's global handlers.
   function openFromTopbar(eventName) {
@@ -160,14 +176,7 @@ export default function AppShell({ children }) {
 
           {dashboardTopbar ? (
             <div className="top-actions dashboard-global-actions">
-              <button
-                type="button"
-                className="dashboard-ask-action"
-                onClick={() => openFromTopbar("banyan:dashboard-open-insight")}
-              >
-                <Icon name="Sparkle" size={14} />
-                <span>Ask anything — “deals quiet over 5 days”</span>
-              </button>
+              <AskAnythingBar value={askQuery} onChange={setAskQuery} onSubmit={submitAskQuery} />
               <button type="button" className="btn ghost" onClick={() => nav("/activities")}>Log activity</button>
               <button
                 type="button"
@@ -177,6 +186,7 @@ export default function AppShell({ children }) {
             </div>
           ) : (
             <div className="top-actions">
+              <AskAnythingBar value={askQuery} onChange={setAskQuery} onSubmit={submitAskQuery} />
               <div className="notification-wrap">
                 <button
                   type="button"
@@ -251,6 +261,13 @@ export default function AppShell({ children }) {
         {children}
       </main>
 
+      <AssistantPanel
+        open={assistantOpen}
+        onClose={() => setAssistantOpen(false)}
+        initialPrompt={assistantPrompt}
+        autoSubmitToken={assistantLaunchToken}
+      />
+
       {board && (
         <ScreenBoard
           onClose={() => setBoard(false)}
@@ -258,6 +275,25 @@ export default function AppShell({ children }) {
         />
       )}
     </div>
+  );
+}
+
+function AskAnythingBar({ value, onChange, onSubmit }) {
+  return (
+    <form className="assistant-topbar-form" role="search" onSubmit={onSubmit}>
+      <Icon name="Sparkle" size={15} />
+      <input
+        type="search"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="Ask anything — e.g. deals quiet over 5 days"
+        aria-label="Ask Banyan Assist"
+        maxLength={2000}
+      />
+      <button type="submit" aria-label="Ask Banyan Assist" title="Ask Banyan Assist">
+        <Icon name="ArrowUpRight" size={16} />
+      </button>
+    </form>
   );
 }
 

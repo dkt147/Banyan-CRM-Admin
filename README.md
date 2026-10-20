@@ -60,3 +60,8 @@ Set `VITE_API_BASE_URL` to the backend `/api/v1` URL before running the frontend
 ## Gmail & Google Calendar
 
 For the full local OAuth setup, open `docs/google-gmail-calendar-local-setup.md` in the backend project. Backend credentials belong in the backend `.env`; only the API base URL belongs in the frontend `.env`.
+
+
+## Ask Anything
+
+The top-bar Ask Anything field opens Banyan Assist. Submitting a question sends it to the authenticated backend endpoint `POST /api/v1/assistant/chat`; the Groq API key is only configured on the backend. The answer includes labels for the live workspace data sources used. Frontend setup remains the same: set `VITE_API_BASE_URL` to the backend API base URL ending in `/api/v1`.
