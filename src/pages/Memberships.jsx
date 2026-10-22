@@ -91,6 +91,7 @@ const MEMBERSHIP_DEFAULT_FORM = {
 
 
   renewalAt: "",
+  endAt: "",
 
 
 
@@ -2005,6 +2006,7 @@ export default function Membership() {
 
 
         renewalAt: toISOStringOrNull(membershipForm.renewalAt),
+        endAt: toISOStringOrNull(membershipForm.endAt),
 
 
 
@@ -2141,6 +2143,7 @@ export default function Membership() {
 
 
         renewalAt: toISOStringOrNull(membershipForm.renewalAt),
+        endAt: toISOStringOrNull(membershipForm.endAt),
 
 
 
@@ -2549,6 +2552,7 @@ export default function Membership() {
 
 
       renewalAt: toInputDateTime(membership.renewalAt),
+      endAt: toInputDateTime(membership.endAt),
 
 
 
@@ -6720,6 +6724,7 @@ export default function Membership() {
 
 
             </label>
+            <label>Membership end date<input type="datetime-local" value={membershipForm.endAt || ""} onChange={(e) => setMembershipForm((prev) => ({ ...prev, endAt: e.target.value }))} /></label>
 
 
 

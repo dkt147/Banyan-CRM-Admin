@@ -1578,7 +1578,9 @@ export default function Agreements() {
 
 
 
-                          {typeof deal ===
+                          {deal != null &&
+
+                            typeof deal ===
 
                             "object" &&
 

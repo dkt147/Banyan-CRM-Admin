@@ -136,16 +136,18 @@ export default function Inbox() {
             subject: selected.subject || "Re: (no subject)",
             text: body,
             conversationId: selected._id,
+            dealId: selected.dealId?._id || selected.dealId || undefined,
           },
         });
         if (response.data?.message) setMessages((items) => [...items, response.data.message]);
         setNotice("Email sent through Gmail.");
       } else {
-        response = await request(`/inbox/${selected._id}/messages`, {
+        if (!selected.participantAddress) throw new Error("This WhatsApp conversation has no recipient phone number.");
+        response = await request("/integrations/whatsapp/messages", {
           method: "POST",
-          body: { body, templateId: templateId || undefined, attachments: [] },
+          body: { to: selected.participantAddress, text: body, conversationId: selected._id },
         });
-        setMessages((items) => [...items, response.data]);
+        setMessages((items) => [...items, response.data?.message || response.data]);
       }
       setBody("");
       setTemplateId("");

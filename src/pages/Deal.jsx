@@ -85,6 +85,8 @@ export default function Deal() {
   const { request } = useAuth();
 
   const [deals, setDeals] = useState([]);
+  const [pipelines, setPipelines] = useState([]);
+  const [editStages, setEditStages] = useState([]);
   const [error, setError] = useState("");
 
   const [loading, setLoading] = useState(true);
@@ -101,6 +103,13 @@ export default function Deal() {
     title: "",
     value: "",
     description: "",
+    status: "open",
+    lostReason: "",
+    paymentReceivedConfirmed: false,
+    pipelineId: "",
+    stageId: "",
+    membershipStartAt: "",
+    membershipEndAt: "",
   });
 
   const loadDeals = async () => {
@@ -116,6 +125,8 @@ export default function Deal() {
       });
 
       setDeals(response.data?.items || []);
+      const pipelineResponse = await request("/pipelines", { query: { page: 1, limit: 100, isActive: true, sort: "sortOrder", order: "asc" } });
+      setPipelines(pipelineResponse.data?.items || pipelineResponse.data || []);
     } catch (e) {
       setError(e.message || "Failed to load deals.");
     } finally {
@@ -127,6 +138,20 @@ export default function Deal() {
     loadDeals();
   }, []);
 
+  useEffect(() => {
+    if (!editDeal || !editForm.pipelineId) { setEditStages([]); return; }
+    let active = true;
+    request(`/pipelines/${editForm.pipelineId}/stages`, { query: { isActive: true, sort: "sortOrder", order: "asc" } })
+      .then((response) => {
+        if (!active) return;
+        const rows = response.data?.items || response.data || [];
+        setEditStages(rows);
+        setEditForm((current) => rows.some((stage) => String(stage._id) === String(current.stageId)) ? current : { ...current, stageId: rows[0]?._id || "" });
+      })
+      .catch((e) => { if (active) setError(e.message || "Failed to load pipeline stages."); });
+    return () => { active = false; };
+  }, [editDeal?._id, editForm.pipelineId]);
+
   const openEditModal = (deal) => {
     setError("");
 
@@ -137,6 +162,13 @@ export default function Deal() {
           ? String(deal.value)
           : "",
       description: deal.description || "",
+      status: deal.status || "open",
+      lostReason: deal.lostReason || "",
+      paymentReceivedConfirmed: Boolean(deal.metadata?.paymentReceivedConfirmed),
+      pipelineId: deal.pipelineId?._id || deal.pipelineId || "",
+      stageId: deal.stageId?._id || deal.stageId || "",
+      membershipStartAt: deal.membershipStartAt ? new Date(deal.membershipStartAt).toISOString().slice(0, 16) : "",
+      membershipEndAt: deal.membershipEndAt ? new Date(deal.membershipEndAt).toISOString().slice(0, 16) : "",
     });
 
     setEditDeal(deal);
@@ -151,6 +183,9 @@ export default function Deal() {
       title: "",
       value: "",
       description: "",
+      status: "open",
+      lostReason: "",
+      paymentReceivedConfirmed: false,
     });
   };
 
@@ -190,6 +225,13 @@ export default function Deal() {
           title,
           value: numericValue,
           description: editForm.description.trim(),
+          status: editForm.status,
+          lostReason: editForm.lostReason.trim(),
+          paymentReceivedConfirmed: editForm.paymentReceivedConfirmed,
+          pipelineId: editForm.pipelineId,
+          stageId: editForm.stageId,
+          membershipStartAt: editForm.membershipStartAt || null,
+          membershipEndAt: editForm.membershipEndAt || null,
         },
       });
 
@@ -801,6 +843,26 @@ export default function Deal() {
                   />
                 </div>
               </div>
+
+              <div className="deal-form-grid">
+                <div className="deal-form-group">
+                  <label className="deal-form-label">Pipeline</label>
+                  <select className="deal-form-input" value={editForm.pipelineId} onChange={(e) => setEditForm((current) => ({ ...current, pipelineId: e.target.value, stageId: "" }))}>
+                    {pipelines.map((pipeline) => <option key={pipeline._id} value={pipeline._id}>{pipeline.name}</option>)}
+                  </select>
+                </div>
+                <div className="deal-form-group">
+                  <label className="deal-form-label">Stage</label>
+                  <select className="deal-form-input" value={editForm.stageId} onChange={(e) => handleEditChange("stageId", e.target.value)}>
+                    {editStages.map((stage) => <option key={stage._id} value={stage._id}>{stage.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {String(pipelines.find((p) => String(p._id) === String(editForm.pipelineId))?.key || "") === "virtual-office" && <div className="deal-form-grid">
+                <div className="deal-form-group"><label className="deal-form-label">Membership start date</label><input className="deal-form-input" type="date" value={editForm.membershipStartAt.slice(0, 10)} onChange={(e) => handleEditChange("membershipStartAt", e.target.value)} /></div>
+                <div className="deal-form-group"><label className="deal-form-label">Membership end / renewal date</label><input className="deal-form-input" type="date" value={editForm.membershipEndAt.slice(0, 10)} onChange={(e) => handleEditChange("membershipEndAt", e.target.value)} /></div>
+              </div>}
 
               <div className="deal-form-group">
                 <label className="deal-form-label">Description</label>

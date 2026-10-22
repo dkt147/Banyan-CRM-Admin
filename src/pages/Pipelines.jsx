@@ -412,6 +412,7 @@ export default function Pipelines() {
 
   const [view, setView] = useState("Kanban");
   const [drawer, setDrawer] = useState(null);
+  const [draggingDealId, setDraggingDealId] = useState(null);
   const [newDeal, setNewDeal] = useState(false);
 
   const [pipelineModal, setPipelineModal] = useState(null);
@@ -1121,16 +1122,42 @@ export default function Pipelines() {
                       </div>
                     </div>
 
-                    <div className="pipeline-stage-body">
+                    <div
+                      className="pipeline-stage-body"
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={async (event) => {
+                        event.preventDefault();
+                        const dealId = event.dataTransfer.getData("text/deal-id") || draggingDealId;
+                        if (!dealId) return;
+                        try {
+                          await request(`/deals/${dealId}/move`, {
+                            method: "PATCH",
+                            body: { stageId: stage._id },
+                          });
+                          setDraggingDealId(null);
+                          await loadData(pipe, dealPage);
+                        } catch (error) {
+                          setError(errMsg(error));
+                        }
+                      }}
+                    >
                       {stageDeals.length ? (
                         stageDeals.map((deal) => (
                           <button
                             type="button"
                             className="pipeline-deal-card"
                             key={deal._id}
+                            draggable
+                            onDragStart={(event) => {
+                              event.dataTransfer.setData("text/deal-id", deal._id);
+                              event.dataTransfer.effectAllowed = "move";
+                              setDraggingDealId(deal._id);
+                            }}
+                            onDragEnd={() => setDraggingDealId(null)}
                             onClick={() => setDrawer(deal)}
                           >
                             <b>{deal.title}</b>
+                            {deal.dealNumber != null && <small>Deal #{deal.dealNumber}</small>}
 
                             <span>
                               {deal.productType || "Deal"} ·{" "}
