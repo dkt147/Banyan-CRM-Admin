@@ -13,19 +13,37 @@ const INITIAL_FORM = {
   isEnabled: true,
 };
 
+// Mirrors backend src/automation/catalog.js. Only triggers the server actually fires are listed.
 const TRIGGER_OPTIONS = [
   { value: "deal_created", label: "Deal created" },
   { value: "deal_updated", label: "Deal updated" },
   { value: "deal_stage_changed", label: "Deal stage changed" },
-  { value: "deal_deleted", label: "Deal deleted" },
-  { value: "lead_created", label: "Lead created" },
-  { value: "lead_updated", label: "Lead updated" },
-  { value: "lead_status_changed", label: "Lead status changed" },
-  { value: "contact_created", label: "Contact created" },
-  { value: "contact_updated", label: "Contact updated" },
-  { value: "task_created", label: "Task created" },
-  { value: "task_completed", label: "Task completed" },
+  { value: "deal_status_changed", label: "Deal won / lost / reopened" },
+  { value: "deal_inactive", label: "Deal inactive (checked every 15 min)" },
 ];
+
+// Deal fields a condition can test, with their type (decides which operators are offered).
+const FIELD_OPTIONS = [
+  { value: "title", label: "Deal title", type: "text" },
+  { value: "productType", label: "Product type", type: "text" },
+  { value: "source", label: "Lead source", type: "text" },
+  { value: "status", label: "Status (open / won / lost)", type: "text" },
+  { value: "value", label: "Deal value", type: "number" },
+  { value: "recurringValue", label: "Recurring value", type: "number" },
+  { value: "daysInStage", label: "Days in current stage", type: "number" },
+  { value: "daysInactive", label: "Days since last activity", type: "number" },
+  { value: "ageDays", label: "Days since created", type: "number" },
+];
+
+const OPERATORS_BY_TYPE = {
+  text: ["equals", "not_equals", "contains", "not_contains", "exists", "not_exists"],
+  number: ["equals", "not_equals", "greater_than", "less_than", "exists", "not_exists"],
+};
+
+function operatorsFor(field) {
+  const type = FIELD_OPTIONS.find((item) => item.value === field)?.type || "text";
+  return CONDITION_OPERATORS.filter((op) => OPERATORS_BY_TYPE[type].includes(op.value));
+}
 
 const CONDITION_OPERATORS = [
   { value: "equals", label: "Equals" },
@@ -42,6 +60,7 @@ const ACTION_TYPES = [
   { value: "create_task", label: "Create task" },
   { value: "log_activity", label: "Log activity" },
   { value: "notify", label: "Create notification" },
+  { value: "change_stage", label: "Move deal to stage" },
 ];
 
 function emptyCondition() {
@@ -63,6 +82,7 @@ function emptyAction() {
     subject: "",
     body: "",
     userId: "",
+    stageId: "",
   };
 }
 
@@ -215,6 +235,7 @@ export default function Automation() {
             subject: action?.subject || "",
             body: action?.body || "",
             userId: action?.userId || "",
+            stageId: action?.stageId || "",
           }))
         : [],
 
@@ -355,6 +376,10 @@ export default function Automation() {
       ) {
         return `Action ${index + 1}: notification title is required.`;
       }
+
+      if (action.type === "change_stage" && !String(action.stageId || "").trim()) {
+        return `Action ${index + 1}: choose a stage to move the deal to.`;
+      }
     }
 
     return "";
@@ -397,6 +422,13 @@ export default function Automation() {
             activityType: action.activityType || "note",
             subject: action.subject.trim(),
             body: action.body.trim() || undefined,
+          };
+        }
+
+        if (action.type === "change_stage") {
+          return {
+            type: "change_stage",
+            stageId: action.stageId.trim(),
           };
         }
 
@@ -863,17 +895,24 @@ export default function Automation() {
                     <label>
                       Field
 
-                      <input
+                      <select
                         value={condition.field}
-                        onChange={(e) =>
-                          updateCondition(
-                            index,
-                            "field",
-                            e.target.value,
-                          )
-                        }
-                        placeholder="stage"
-                      />
+                        onChange={(e) => {
+                          const nextField = e.target.value;
+                          updateCondition(index, "field", nextField);
+                          const allowed = operatorsFor(nextField);
+                          if (!allowed.some((op) => op.value === condition.operator)) {
+                            updateCondition(index, "operator", allowed[0].value);
+                          }
+                        }}
+                      >
+                        <option value="">Choose a field</option>
+                        {FIELD_OPTIONS.map((field) => (
+                          <option key={field.value} value={field.value}>
+                            {field.label}
+                          </option>
+                        ))}
+                      </select>
                     </label>
 
                     <label>
@@ -889,7 +928,7 @@ export default function Automation() {
                           )
                         }
                       >
-                        {CONDITION_OPERATORS.map(
+                        {operatorsFor(condition.field).map(
                           (operator) => (
                             <option
                               key={operator.value}
@@ -1026,7 +1065,7 @@ export default function Automation() {
                         </label>
 
                         <label>
-                          Assigned member ID
+                          Assign to (blank = deal owner; or a member ID)
 
                           <input
                             value={action.assignedTo}
@@ -1123,10 +1162,21 @@ export default function Automation() {
                       </>
                     )}
 
+                    {action.type === "change_stage" && (
+                      <label className="form-span-2">
+                        Stage ID (must belong to the deal's pipeline)
+                        <input
+                          value={action.stageId}
+                          onChange={(e) => updateAction(index, "stageId", e.target.value)}
+                          placeholder="Paste a stage ID from the Pipelines page"
+                        />
+                      </label>
+                    )}
+
                     {action.type === "notify" && (
                       <>
                         <label>
-                          User ID
+                          Notify (blank = deal owner; or a member ID)
 
                           <input
                             value={action.userId}
