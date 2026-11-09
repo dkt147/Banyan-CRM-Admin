@@ -15,6 +15,7 @@ import Modal from "../components/Modal";
 
 
 import { useAuth } from "../auth/AuthContext";
+import { fromHkInput, toHkInput } from "../utils/hkTime";
 
 
 
@@ -279,58 +280,9 @@ function formatDateTime(value) {
 
 
 
+// Hong Kong time for date inputs, whatever the browser time zone.
 function toInputDateTime(value) {
-
-
-
-  if (!value) return "";
-
-
-
-
-
-
-
-  const date = new Date(value);
-
-
-
-
-
-
-
-  if (Number.isNaN(date.getTime())) {
-
-
-
-    return "";
-
-
-
-  }
-
-
-
-
-
-
-
-  const offset = date.getTimezoneOffset();
-
-
-
-  const local = new Date(date.getTime() - offset * 60 * 1000);
-
-
-
-
-
-
-
-  return local.toISOString().slice(0, 16);
-
-
-
+  return toHkInput(value);
 }
 
 
@@ -339,46 +291,10 @@ function toInputDateTime(value) {
 
 
 
+// Reads a date input as Hong Kong time.
 function toISOStringOrNull(value) {
-
-
-
-  if (!value) return null;
-
-
-
-
-
-
-
-  const date = new Date(value);
-
-
-
-
-
-
-
-  if (Number.isNaN(date.getTime())) {
-
-
-
-    return null;
-
-
-
-  }
-
-
-
-
-
-
-
-  return date.toISOString();
-
-
-
+  const date = fromHkInput(value);
+  return date ? date.toISOString() : null;
 }
 
 

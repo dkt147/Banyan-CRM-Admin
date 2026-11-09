@@ -1,1079 +1,167 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Page, SectionTitle, Empty } from "./Dashboard";
+import React, { useCallback, useEffect, useState } from "react";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { Page } from "./Dashboard";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
+import { BulkBar, CheckCell, DataState, FilterChips, Pager, SavedViews, SearchBox, runBulk, useSelection } from "../components/ListKit";
 import { useAuth } from "../auth/AuthContext";
+import { usePermissions } from "../utils/permissions";
+import { recordHref } from "../utils/recordLinks";
+import { invalidateLookups, useLookups } from "../utils/useLookups";
+import { CONTACT_TAGS, tagLabel } from "./detail/ContactDetail";
 
-const contactTags = [
-  "prospect",
-  "active_member",
-  "past_member",
-  "event_client",
-  "broker_agent",
-  "ngo",
-  "vip",
-];
-
-const blankForm = {
-  firstName: "",
-  lastName: "",
-  email: "",
-  phone: "",
-  whatsapp: "",
-  jobTitle: "",
-  companyId: "",
-  tags: "",
-  source: "",
-  language: "en",
-  notes: "",
-  isArchived: false,
-};
-
-const defaultPagination = {
-  page: 1,
-  limit: 25,
-  total: 0,
-  totalPages: 1,
-};
+const PAGE_SIZE = 25;
+const DEFAULT_VIEW = { search: "", status: "active", tag: "", companyId: "", mine: false };
+const blankForm = { firstName: "", lastName: "", email: "", phone: "", whatsapp: "", jobTitle: "", companyId: "", tags: "", source: "", language: "en", notes: "" };
+const fmtShort = (v) => (v ? new Date(v).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "");
 
 export default function Contacts() {
-  const { request } = useAuth();
-
-  const [contacts, setContacts] = useState([]);
-  const [companies, setCompanies] = useState([]);
-
-  const [selected, setSelected] = useState(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-
-  const [search, setSearch] = useState("");
-  const [searchInput, setSearchInput] = useState("");
-  const [companyFilter, setCompanyFilter] = useState("");
-  const [archiveFilter, setArchiveFilter] = useState("active");
-
-  const [pagination, setPagination] = useState(defaultPagination);
-
-  const [modal, setModal] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState(blankForm);
-
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
-
+  const { request, user } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { companies } = useLookups(["companies"]);
+  const [view, setView] = useState(DEFAULT_VIEW);
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState([]);
+  const [meta, setMeta] = useState({ total: 0, pages: 1 });
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [modal, setModal] = useState(false);
+  const [form, setForm] = useState(blankForm);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [bulkTag, setBulkTag] = useState("");
+  const sel = useSelection(rows);
+  const canWrite = usePermissions().can("records.write");
+  const legacyId = searchParams.get("id");
 
-  const companyName = useMemo(() => {
-    return Object.fromEntries(
-      companies.map((company) => [company._id, company.name]),
-    );
-  }, [companies]);
-
-  function formatTag(tag) {
-    return tag
-      .replace(/_/g, " ")
-      .replace(/\b\w/g, (char) => char.toUpperCase());
-  }
-
-  async function loadCompanies() {
+  const load = useCallback(async () => {
+    setLoading(true); setError("");
     try {
-      const response = await request("/companies", {
-        query: {
-          page: 1,
-          limit: 100,
-        },
-      });
+      const query = { page, limit: PAGE_SIZE, search: view.search, companyId: view.companyId, tag: view.tag };
+      query.isArchived = view.status === "all" ? "all" : view.status === "archived";
+      if (view.mine && user?._id) query.ownerId = user._id;
+      const r = await request("/contacts", { query });
+      setRows(Array.isArray(r.data) ? r.data : []);
+      setMeta({ total: r.pagination?.total || 0, pages: r.pagination?.totalPages || 1 });
+    } catch (e) { setError(e.message || "Failed to load contacts."); setRows([]); }
+    finally { setLoading(false); }
+  }, [request, page, view, user?._id]);
+  useEffect(() => { if (!legacyId) load(); }, [load, legacyId]);
 
-      setCompanies(Array.isArray(response.data) ? response.data : []);
-    } catch (e) {
-      setError(e.message || "Failed to load companies.");
-    }
-  }
+  // Older links used /contact?id=…; send them to the detail page.
+  if (legacyId) return <Navigate to={recordHref.contact(legacyId)} replace />;
 
-  async function loadContacts(
-    page = pagination.page,
-    customSearch = search,
-    customCompany = companyFilter,
-    customArchive = archiveFilter,
-  ) {
-    setLoading(true);
-    setError("");
+  const update = (patch) => { setView((v) => ({ ...v, ...patch })); setPage(1); };
 
+  async function create() {
+    if (!form.firstName.trim()) { setFormError("First name is required."); return; }
+    setSaving(true); setFormError("");
     try {
-      const query = {
-        page,
-        limit: pagination.limit,
-        search: customSearch,
-      };
-
-      if (customCompany) {
-        query.companyId = customCompany;
-      }
-
-      if (customArchive === "active") {
-        query.isArchived = false;
-      }
-
-      if (customArchive === "archived") {
-        query.isArchived = true;
-      }
-
-      const response = await request("/contacts", {
-        query,
-      });
-
-      const rows = Array.isArray(response.data) ? response.data : [];
-
-      setContacts(rows);
-
-      setPagination({
-        page: response.pagination?.page || page,
-        limit: response.pagination?.limit || 25,
-        total: response.pagination?.total || rows.length,
-        totalPages: response.pagination?.totalPages || 1,
-      });
-
-      setSelected((previous) => {
-        if (!previous) {
-          return rows[0] || null;
-        }
-
-        const stillExists = rows.find(
-          (contact) => contact._id === previous._id,
-        );
-
-        return stillExists || rows[0] || null;
-      });
-    } catch (e) {
-      setError(e.message || "Failed to load contacts.");
-    } finally {
-      setLoading(false);
-    }
+      const body = { firstName: form.firstName.trim(), lastName: form.lastName.trim(), language: form.language, tags: form.tags ? [form.tags] : [] };
+      for (const key of ["email", "phone", "whatsapp", "jobTitle", "source", "notes"]) if (form[key].trim()) body[key] = form[key].trim();
+      if (form.companyId) body.companyId = form.companyId;
+      const r = await request("/contacts", { method: "POST", body });
+      invalidateLookups("contacts");
+      setModal(false); setForm(blankForm);
+      navigate(recordHref.contact(r.data._id));
+    } catch (e) { setFormError(e.message || "Failed to create contact."); }
+    finally { setSaving(false); }
   }
 
-  useEffect(() => {
-    loadCompanies();
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setSearch(searchInput);
-
-      setPagination((previous) => ({
-        ...previous,
-        page: 1,
-      }));
-
-      loadContacts(1, searchInput, companyFilter, archiveFilter);
-    }, 350);
-
-    return () => clearTimeout(timer);
-  }, [searchInput]);
-
-  useEffect(() => {
-    setPagination((previous) => ({
-      ...previous,
-      page: 1,
-    }));
-
-    loadContacts(1, search, companyFilter, archiveFilter);
-  }, [companyFilter, archiveFilter]);
-
-  async function loadContactDetails(contactId) {
-    if (!contactId) return;
-
-    setDetailLoading(true);
-    setError("");
-
-    try {
-      const response = await request(`/contacts/${contactId}`);
-
-      if (response.data) {
-        setSelected(response.data);
-      }
-    } catch (e) {
-      setError(e.message || "Failed to load contact details.");
-    } finally {
-      setDetailLoading(false);
-    }
+  async function bulk(kind) {
+    const ids = sel.ids();
+    if (kind === "archive" && !window.confirm(`Archive ${ids.length} contact(s)?`)) return;
+    if (kind === "tag" && !bulkTag) return;
+    const byId = new Map(rows.map((r) => [r._id, r]));
+    const result = await runBulk(ids, (id) => kind === "archive"
+      ? request(`/contacts/${id}/archive`, { method: "PATCH" })
+      : request(`/contacts/${id}`, { method: "PATCH", body: { tags: [...new Set([...(byId.get(id)?.tags || []), bulkTag])] } }));
+    setNotice(`${result.ok} updated${result.failed ? `, ${result.failed} failed: ${result.firstError}` : ""}.`);
+    sel.clear(); setBulkTag(""); invalidateLookups("contacts"); load();
   }
 
-  function handleSelectContact(contact) {
-    setSelected(contact);
-    loadContactDetails(contact._id);
-  }
-
-  function openCreateModal() {
-    setEditing(false);
-
-    setForm({
-      ...blankForm,
-      language: "en",
-      isArchived: false,
-      tags: "",
-    });
-
-    setModal(true);
-    setError("");
-  }
-
-  function openEditModal() {
-    if (!selected) return;
-
-    const selectedCompanyId =
-      selected.companyId?._id || selected.companyId || "";
-
-    const selectedTag = Array.isArray(selected.tags)
-      ? selected.tags[0] || ""
-      : selected.tags || "";
-
-    setEditing(true);
-
-    setForm({
-      firstName: selected.firstName || "",
-      lastName: selected.lastName || "",
-      email: selected.email || "",
-      phone: selected.phone || "",
-      whatsapp: selected.whatsapp || "",
-      jobTitle: selected.jobTitle || "",
-      companyId: selectedCompanyId,
-      tags: contactTags.includes(selectedTag) ? selectedTag : "",
-      source: selected.source || "",
-      language: selected.language || "en",
-      notes: selected.notes || "",
-      isArchived: Boolean(selected.isArchived),
-    });
-
-    setModal(true);
-    setError("");
-  }
-
-  function closeModal() {
-    if (saving) return;
-
-    setModal(false);
-    setForm(blankForm);
-    setEditing(false);
-  }
-
-  function updateField(field, value) {
-    setForm((previous) => ({
-      ...previous,
-      [field]: value,
-    }));
-  }
-
-  async function saveContact() {
-    if (!form.firstName.trim()) {
-      setError("First name is required.");
-      return;
-    }
-
-    if (!form.lastName.trim()) {
-      setError("Last name is required.");
-      return;
-    }
-
-    setSaving(true);
-    setError("");
-
-    try {
-      const payload = {
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
-        email: form.email.trim(),
-        phone: form.phone.trim(),
-        whatsapp: form.whatsapp.trim(),
-        jobTitle: form.jobTitle.trim(),
-        source: form.source.trim(),
-        language: form.language || "en",
-        notes: form.notes.trim(),
-        isArchived: Boolean(form.isArchived),
-
-        // Backend expects tags as an array.
-        tags: form.tags ? [form.tags] : [],
-      };
-
-      if (form.companyId) {
-        payload.companyId = form.companyId;
-      }
-
-      let response;
-
-      if (editing && selected?._id) {
-        response = await request(`/contacts/${selected._id}`, {
-          method: "PATCH",
-          body: payload,
-        });
-      } else {
-        response = await request("/contacts", {
-          method: "POST",
-          body: payload,
-        });
-      }
-
-      const updatedContact = response.data;
-
-      setModal(false);
-      setForm(blankForm);
-      setEditing(false);
-
-      await loadContacts(pagination.page, search, companyFilter, archiveFilter);
-
-      if (updatedContact?._id) {
-        await loadContactDetails(updatedContact._id);
-      }
-    } catch (e) {
-      setError(e.message || "Failed to save contact.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function archiveContact() {
-    if (!selected?._id) return;
-
-    const confirmed = window.confirm(
-      `Archive ${selected.fullName || "this contact"}?`,
-    );
-
-    if (!confirmed) return;
-
-    setActionLoading(true);
-    setError("");
-
-    try {
-      await request(`/contacts/${selected._id}/archive`, {
-        method: "PATCH",
-      });
-
-      setSelected(null);
-
-      await loadContacts(pagination.page, search, companyFilter, archiveFilter);
-    } catch (e) {
-      setError(e.message || "Failed to archive contact.");
-    } finally {
-      setActionLoading(false);
-    }
-  }
-
-  async function deleteContact() {
-    if (!selected?._id) return;
-
-    const confirmed = window.confirm(
-      `Delete ${selected.fullName || "this contact"} permanently?`,
-    );
-
-    if (!confirmed) return;
-
-    setActionLoading(true);
-    setError("");
-
-    try {
-      await request(`/contacts/${selected._id}`, {
-        method: "DELETE",
-      });
-
-      setSelected(null);
-
-      const nextPage =
-        contacts.length === 1 && pagination.page > 1
-          ? pagination.page - 1
-          : pagination.page;
-
-      await loadContacts(nextPage, search, companyFilter, archiveFilter);
-    } catch (e) {
-      setError(e.message || "Failed to delete contact.");
-    } finally {
-      setActionLoading(false);
-    }
-  }
-
-  function goToPage(page) {
-    if (page < 1 || page > pagination.totalPages || page === pagination.page) {
-      return;
-    }
-
-    setSelected(null);
-
-    loadContacts(page, search, companyFilter, archiveFilter);
-  }
-
-  function resetFilters() {
-    setSearchInput("");
-    setSearch("");
-    setCompanyFilter("");
-    setArchiveFilter("active");
-
-    setPagination((previous) => ({
-      ...previous,
-      page: 1,
-    }));
-
-    loadContacts(1, "", "", "active");
-  }
-
-  function getCompanyName(contact) {
-    if (contact.companyId?.name) {
-      return contact.companyId.name;
-    }
-
-    const id = contact.companyId?._id || contact.companyId;
-
-    return companyName[id] || "No company";
-  }
-
-  function getInitials(contact) {
-    return `${contact.firstName?.[0] || ""}${
-      contact.lastName?.[0] || ""
-    }`.toUpperCase();
-  }
-
-  function getFullName(contact) {
-    return (
-      contact.fullName ||
-      `${contact.firstName || ""} ${contact.lastName || ""}`.trim() ||
-      "Unnamed contact"
-    );
-  }
+  const statusChips = [["active", "Active"], ["archived", "Archived"], ["all", "All"]];
 
   return (
     <Page
       title="Contacts"
-      kicker={
-        pagination.total
-          ? `${pagination.total} contact${pagination.total === 1 ? "" : "s"}`
-          : "Manage workspace contacts"
-      }
-      actions={
-        <div
-          style={{
-            display: "flex",
-            gap: 10,
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
-          <input
-            className="search-input"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search contacts..."
-            style={{
-              minWidth: 240,
-            }}
-          />
-
-          <button className="btn primary" onClick={openCreateModal}>
-            + New contact
-          </button>
-        </div>
-      }
+      kicker={`${meta.total} contact${meta.total === 1 ? "" : "s"}`}
+      actions={canWrite && <button type="button" className="btn primary" onClick={() => { setForm(blankForm); setFormError(""); setModal(true); }}>+ New contact</button>}
     >
-      {error && (
-        <div className="notice error">
-          <b>Contacts</b>
-          <span>{error}</span>
-        </div>
-      )}
+      <section className="lk-toolbar">
+        <SearchBox value={view.search} onChange={(search) => update({ search })} placeholder="Search name, email, phone or company" />
+        <select aria-label="Company" value={view.companyId} onChange={(e) => update({ companyId: e.target.value })}>
+          <option value="">All companies</option>
+          {companies.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
+        </select>
+        <SavedViews page="contacts" current={view} onApply={(state) => { setView({ ...DEFAULT_VIEW, ...state }); setPage(1); }} />
+      </section>
+      <section className="lk-filterbar">
+        <FilterChips label="Status" chips={statusChips.map(([key, label]) => ({ key, label, active: view.status === key }))} onToggle={(status) => update({ status })} />
+        <FilterChips label="Tag" chips={CONTACT_TAGS.map((t) => ({ key: t, label: tagLabel(t), active: view.tag === t }))} onToggle={(t) => update({ tag: view.tag === t ? "" : t })} />
+        <FilterChips chips={[{ key: "mine", label: "My contacts", active: view.mine }]} onToggle={() => update({ mine: !view.mine })} />
+      </section>
+      {notice && <div className="notice"><b>Contacts</b><span>{notice}</span></div>}
 
-      {/* FILTER BAR */}
-      <section className="panel contacts-filter-panel">
-        <div className="contacts-filter-layout">
-          <label className="filter-field filter-company-field">
-            Company
-            <select
-              value={companyFilter}
-              onChange={(e) => setCompanyFilter(e.target.value)}
-            >
-              <option value="">All companies</option>
+      <BulkBar count={canWrite ? sel.count : 0} onClear={sel.clear}>
+        <button type="button" className="btn ghost" onClick={() => bulk("archive")}>Archive</button>
+        <select aria-label="Tag to add" value={bulkTag} onChange={(e) => setBulkTag(e.target.value)}>
+          <option value="">Add tag…</option>
+          {CONTACT_TAGS.map((t) => <option key={t} value={t}>{tagLabel(t)}</option>)}
+        </select>
+        <button type="button" className="btn ghost" disabled={!bulkTag} onClick={() => bulk("tag")}>Apply tag</button>
+      </BulkBar>
 
-              {companies.map((company) => (
-                <option key={company._id} value={company._id}>
-                  {company.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="filter-field filter-status-field">
-            Status
-            <select
-              value={archiveFilter}
-              onChange={(e) => setArchiveFilter(e.target.value)}
-            >
-              <option value="active">Active</option>
-              <option value="archived">Archived</option>
-              <option value="all">All contacts</option>
-            </select>
-          </label>
-
-          <div className="filter-action-group">
-            <button className="btn ghost" onClick={resetFilters}>
-              Reset filters
-            </button>
-          </div>
-        </div>
+      <section className="panel lk-table-wrap">
+        <DataState loading={loading} error={error} onRetry={load} empty={rows.length === 0} emptyText={view.search ? `No contacts match "${view.search}".` : "No contacts found."}>
+          <table className="lk-table">
+            <thead>
+              <tr>
+                {canWrite && <th className="lk-check"><input type="checkbox" aria-label="Select all" checked={sel.allSelected} onChange={sel.toggleAll} /></th>}
+                <th>Name</th><th>Company</th><th>Email / phone</th><th>Tags</th><th>Bookings</th><th>Deals</th><th>Owner</th>
+              </tr>
+            </thead>
+            <tbody className={loading ? "lk-dim" : ""}>
+              {rows.map((c) => {
+                const company = c.companyId && typeof c.companyId === "object" ? c.companyId : null;
+                return (
+                  <tr key={c._id} className="lk-row" onClick={() => navigate(recordHref.contact(c._id))}>
+                    {canWrite && <CheckCell checked={sel.has(c._id)} onChange={() => sel.toggle(c._id)} label={`Select ${c.firstName}`} />}
+                    <td><Link to={recordHref.contact(c._id)} onClick={(e) => e.stopPropagation()} className="lk-primary">{[c.firstName, c.lastName].filter(Boolean).join(" ")}</Link>{c.jobTitle && <small>{c.jobTitle}</small>}</td>
+                    <td>{company ? <Link to={recordHref.company(company._id)} onClick={(e) => e.stopPropagation()}>{company.name}</Link> : "—"}</td>
+                    <td><span>{c.email || "—"}</span>{c.phone && <small>{c.phone}</small>}</td>
+                    <td>{(c.tags || []).slice(0, 2).map((t) => <Badge key={t}>{tagLabel(t)}</Badge>)}{c.isArchived && <Badge tone="warn">Archived</Badge>}</td>
+                    <td>{c.bookingCount || 0}{c.nextBookingAt && <small>Next {fmtShort(c.nextBookingAt)}</small>}</td>
+                    <td>{c.dealCount || 0}{c.openDealCount ? <small>{c.openDealCount} open</small> : null}</td>
+                    <td>{c.ownerId?.name || "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </DataState>
+        <Pager page={page} pages={meta.pages} total={meta.total} loading={loading} onPage={setPage} />
       </section>
 
-      <div className="contact-grid">
-        {/* CONTACT LIST */}
-        <section className="panel contact-list">
-          <div
-            className="filters"
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 10,
-              marginBottom: 10,
-            }}
-          >
-            <b>Contacts</b>
-
-            {loading && (
-              <span
-                style={{
-                  fontSize: 12,
-                  opacity: 0.65,
-                }}
-              >
-                Loading...
-              </span>
-            )}
-          </div>
-
-          {contacts.length === 0 ? (
-            <Empty text="No contacts found." />
-          ) : (
-            contacts.map((contact) => (
-              <button
-                type="button"
-                className={`contact-row ${
-                  selected?._id === contact._id ? "selected" : ""
-                }`}
-                onClick={() => handleSelectContact(contact)}
-                key={contact._id}
-              >
-                <span className="avatar">{getInitials(contact)}</span>
-
-                <div
-                  style={{
-                    minWidth: 0,
-                    flex: 1,
-                    textAlign: "left",
-                  }}
-                >
-                  <b
-                    style={{
-                      display: "block",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {getFullName(contact)}
-                  </b>
-
-                  <span
-                    style={{
-                      display: "block",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {contact.jobTitle ||
-                      getCompanyName(contact) ||
-                      contact.email ||
-                      "Contact"}
-                  </span>
-
-                  {contact.email && (
-                    <small
-                      style={{
-                        opacity: 0.65,
-                      }}
-                    >
-                      {contact.email}
-                    </small>
-                  )}
-                </div>
-
-                {contact.isArchived && <Badge>Archived</Badge>}
-              </button>
-            ))
-          )}
-        </section>
-
-        {/* CONTACT DETAILS */}
-        <section className="panel contact-detail">
-          {!selected ? (
-            <Empty text="Select a contact to view details." />
-          ) : (
-            <>
-              {detailLoading ? (
-                <div
-                  style={{
-                    padding: 30,
-                    textAlign: "center",
-                  }}
-                >
-                  Loading contact details...
-                </div>
-              ) : (
-                <>
-                  <div
-                    className="profile-head"
-                    style={{
-                      alignItems: "flex-start",
-                    }}
-                  >
-                    <span className="avatar big">{getInitials(selected)}</span>
-
-                    <div
-                      style={{
-                        minWidth: 0,
-                        flex: 1,
-                      }}
-                    >
-                      <span className="eyebrow">
-                        {selected.jobTitle || "Contact"}
-                        {" · "}
-                        {getCompanyName(selected)}
-                      </span>
-
-                      <h2>{getFullName(selected)}</h2>
-
-                      <div
-                        className="badges"
-                        style={{
-                          display: "flex",
-                          gap: 6,
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <Badge>{selected.source || "Direct"}</Badge>
-
-                        {selected.language && (
-                          <Badge>{selected.language}</Badge>
-                        )}
-
-                        {selected.isArchived && <Badge>Archived</Badge>}
-                      </div>
-                    </div>
-
-                    <div
-                      className="actions"
-                      style={{
-                        display: "flex",
-                        gap: 8,
-                        flexWrap: "wrap",
-                        justifyContent: "flex-end",
-                      }}
-                    >
-                      <button
-                        className="btn ghost"
-                        onClick={openEditModal}
-                        disabled={actionLoading}
-                      >
-                        Edit
-                      </button>
-
-                      {!selected.isArchived && (
-                        <button
-                          className="btn ghost"
-                          onClick={archiveContact}
-                          disabled={actionLoading}
-                        >
-                          {actionLoading ? "Working..." : "Archive"}
-                        </button>
-                      )}
-
-                      <button
-                        className="btn ghost"
-                        onClick={deleteContact}
-                        disabled={actionLoading}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="detail-grid">
-                    <Info label="Email" value={selected.email || "—"} />
-
-                    <Info label="Phone" value={selected.phone || "—"} />
-
-                    <Info label="WhatsApp" value={selected.whatsapp || "—"} />
-
-                    <Info label="Job title" value={selected.jobTitle || "—"} />
-
-                    <Info label="Company" value={getCompanyName(selected)} />
-
-                    <Info label="Source" value={selected.source || "—"} />
-
-                    <Info label="Language" value={selected.language || "—"} />
-
-                    <Info
-                      label="Owner"
-                      value={selected.ownerId?.name || "Assigned user"}
-                    />
-
-                    <Info
-                      label="Created"
-                      value={
-                        selected.createdAt
-                          ? new Date(selected.createdAt).toLocaleDateString()
-                          : "—"
-                      }
-                    />
-
-                    <Info
-                      label="Updated"
-                      value={
-                        selected.updatedAt
-                          ? new Date(selected.updatedAt).toLocaleDateString()
-                          : "—"
-                      }
-                    />
-                  </div>
-
-                  {/* TAGS */}
-                  {selected.tags?.length > 0 && (
-                    <>
-                      <SectionTitle title="Tags" />
-
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 6,
-                          flexWrap: "wrap",
-                          marginBottom: 18,
-                        }}
-                      >
-                        {selected.tags.map((tag, index) => (
-                          <Badge key={`${tag}-${index}`}>
-                            {formatTag(tag)}
-                          </Badge>
-                        ))}
-                      </div>
-                    </>
-                  )}
-
-                  <SectionTitle title="Notes" />
-
-                  <p className="detail-note">
-                    {selected.notes || "No notes yet."}
-                  </p>
-                </>
-              )}
-            </>
-          )}
-        </section>
-      </div>
-
-      {/* PAGINATION */}
-      {pagination.totalPages > 1 && (
-        <section
-          className="panel"
-          style={{
-            marginTop: 16,
-            padding: 12,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 12,
-              flexWrap: "wrap",
-            }}
-          >
-            <span
-              style={{
-                fontSize: 13,
-                opacity: 0.7,
-              }}
-            >
-              Showing{" "}
-              {(pagination.page - 1) * pagination.limit +
-                (contacts.length ? 1 : 0)}
-              –{Math.min(pagination.page * pagination.limit, pagination.total)}{" "}
-              of {pagination.total}
-            </span>
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <button
-                className="btn ghost"
-                disabled={pagination.page <= 1}
-                onClick={() => goToPage(pagination.page - 1)}
-              >
-                Previous
-              </button>
-
-              <span
-                style={{
-                  minWidth: 90,
-                  textAlign: "center",
-                  fontSize: 13,
-                  fontWeight: 600,
-                }}
-              >
-                Page {pagination.page} of {pagination.totalPages}
-              </span>
-
-              <button
-                className="btn ghost"
-                disabled={pagination.page >= pagination.totalPages}
-                onClick={() => goToPage(pagination.page + 1)}
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* CREATE / EDIT MODAL */}
       {modal && (
-        <Modal
-          title={editing ? "Edit contact" : "Create new contact"}
-          onClose={closeModal}
-          actions={
-            <>
-              <button
-                className="btn ghost"
-                onClick={closeModal}
-                disabled={saving}
-              >
-                Cancel
-              </button>
-
-              <button
-                className="btn primary"
-                onClick={saveContact}
-                disabled={saving}
-              >
-                {saving
-                  ? "Saving..."
-                  : editing
-                    ? "Save changes"
-                    : "Create contact"}
-              </button>
-            </>
-          }
-        >
+        <Modal title="Create new contact" onClose={() => !saving && setModal(false)} actions={<>
+          <button type="button" className="btn ghost" onClick={() => setModal(false)} disabled={saving}>Cancel</button>
+          <button type="button" className="btn primary" onClick={create} disabled={saving}>{saving ? "Saving…" : "Create contact"}</button>
+        </>}>
+          {formError && <div className="notice error"><b>Contact</b><span>{formError}</span></div>}
           <div className="form-grid">
-            <Field
-              label="First name"
-              required
-              value={form.firstName}
-              onChange={(value) => updateField("firstName", value)}
-            />
-
-            <Field
-              label="Last name"
-              required
-              value={form.lastName}
-              onChange={(value) => updateField("lastName", value)}
-            />
-
-            <Field
-              label="Email"
-              type="email"
-              value={form.email}
-              onChange={(value) => updateField("email", value)}
-            />
-
-            <Field
-              label="Phone"
-              value={form.phone}
-              onChange={(value) => updateField("phone", value)}
-            />
-
-            <Field
-              label="WhatsApp"
-              value={form.whatsapp}
-              onChange={(value) => updateField("whatsapp", value)}
-            />
-
-            <Field
-              label="Job title"
-              value={form.jobTitle}
-              onChange={(value) => updateField("jobTitle", value)}
-            />
-
-            {/* COMPANY */}
-            <label>
-              Company
-              <select
-                value={form.companyId}
-                onChange={(e) => updateField("companyId", e.target.value)}
-              >
-                <option value="">No company</option>
-
-                {companies.map((company) => (
-                  <option key={company._id} value={company._id}>
-                    {company.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <Field
-              label="Source"
-              placeholder="website"
-              value={form.source}
-              onChange={(value) => updateField("source", value)}
-            />
-
-            {/* LANGUAGE */}
-            <label>
-              Language
-              <select
-                value={form.language}
-                onChange={(e) => updateField("language", e.target.value)}
-              >
-                <option value="en">English</option>
-
-                <option value="zh">Chinese</option>
-
-                <option value="es">Spanish</option>
-              </select>
-            </label>
-
-            {/* TAG DROPDOWN */}
-            <label>
-              Tag
-              <select
-                value={form.tags}
-                onChange={(e) => updateField("tags", e.target.value)}
-              >
-                <option value="">Select a tag</option>
-
-                {contactTags.map((tag) => (
-                  <option key={tag} value={tag}>
-                    {formatTag(tag)}
-                  </option>
-                ))}
-              </select>
-              <small
-                style={{
-                  display: "block",
-                  marginTop: 5,
-                  opacity: 0.6,
-                  fontSize: 12,
-                }}
-              >
-                Select the contact category
-              </small>
-            </label>
+            {[["firstName", "First name *"], ["lastName", "Last name"], ["email", "Email", "email"], ["phone", "Phone"], ["whatsapp", "WhatsApp"], ["jobTitle", "Job title"], ["source", "Source / referral"]].map(([key, label, type]) => (
+              <label key={key}>{label}<input type={type || "text"} value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} /></label>
+            ))}
+            <label>Company<select value={form.companyId} onChange={(e) => setForm({ ...form, companyId: e.target.value })}><option value="">No company</option>{companies.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}</select></label>
+            <label>Language<select value={form.language} onChange={(e) => setForm({ ...form, language: e.target.value })}><option value="en">English</option><option value="zh">Chinese</option><option value="es">Spanish</option></select></label>
+            <label>Tag<select value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })}><option value="">No tag</option>{CONTACT_TAGS.map((t) => <option key={t} value={t}>{tagLabel(t)}</option>)}</select></label>
           </div>
-
-          {/* ARCHIVED */}
-          <label
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginTop: 16,
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={form.isArchived}
-              onChange={(e) => updateField("isArchived", e.target.checked)}
-            />
-
-            <span>Archived</span>
-          </label>
-
-          {/* NOTES */}
-          <label
-            style={{
-              marginTop: 16,
-            }}
-          >
-            Notes
-            <textarea
-              rows={5}
-              value={form.notes}
-              onChange={(e) => updateField("notes", e.target.value)}
-              placeholder="Add notes about this contact..."
-            />
-          </label>
+          <label>Notes<textarea rows={4} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
         </Modal>
       )}
     </Page>
-  );
-}
-
-/* ------------------------------------------------------------
-   Field component
------------------------------------------------------------- */
-
-function Field({
-  label,
-  value,
-  onChange,
-  type = "text",
-  placeholder = "",
-  required = false,
-}) {
-  return (
-    <label>
-      {label}
-
-      {required && (
-        <span
-          style={{
-            color: "var(--danger, #d33)",
-            marginLeft: 3,
-          }}
-        >
-          *
-        </span>
-      )}
-
-      <input
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </label>
-  );
-}
-
-/* ------------------------------------------------------------
-   Info component
------------------------------------------------------------- */
-
-function Info({ label, value }) {
-  return (
-    <div
-      style={{
-        minWidth: 0,
-      }}
-    >
-      <span className="eyebrow">{label}</span>
-
-      <b
-        style={{
-          display: "block",
-          marginTop: 3,
-          wordBreak: "break-word",
-        }}
-      >
-        {value}
-      </b>
-    </div>
   );
 }

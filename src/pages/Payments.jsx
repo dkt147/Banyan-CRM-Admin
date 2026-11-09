@@ -3,6 +3,7 @@ import { Page, Empty } from "./Dashboard";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import { useAuth } from "../auth/AuthContext";
+import { fromHkInput, toHkInput } from "../utils/hkTime";
 
 const EMPTY_FORM = {
   invoiceId: "",
@@ -18,31 +19,15 @@ const PAYMENT_STATUSES = ["pending", "succeeded", "failed", "refunded"];
 
 const PAYMENT_PROVIDERS = ["manual", "xero"];
 
+// Hong Kong time for date inputs, whatever the browser time zone.
 function toDateTimeLocal(value) {
-  if (!value) return "";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  const offset = date.getTimezoneOffset();
-  const local = new Date(date.getTime() - offset * 60 * 1000);
-
-  return local.toISOString().slice(0, 16);
+  return toHkInput(value);
 }
 
+// Reads a date input as Hong Kong time.
 function toISOStringOrUndefined(value) {
-  if (!value) return undefined;
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return undefined;
-  }
-
-  return date.toISOString();
+  const date = fromHkInput(value);
+  return date ? date.toISOString() : undefined;
 }
 
 function getItems(response) {

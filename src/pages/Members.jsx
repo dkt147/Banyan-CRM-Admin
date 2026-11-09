@@ -3,6 +3,7 @@ import { Page, Empty } from "./Dashboard";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import { useAuth } from "../auth/AuthContext";
+import { ROLE_OPTIONS, roleLabel } from "../utils/permissions";
 
 const EMPTY_FORM = {
   name: "",
@@ -15,7 +16,7 @@ const EMPTY_FORM = {
   isActive: true,
 };
 
-const ROLES = ["admin", "manager", "operator"];
+const ROLES = ROLE_OPTIONS.map(([value]) => value);
 
 export default function Members() {
   const { request, user } = useAuth();
@@ -390,7 +391,8 @@ export default function Members() {
    * ---------------------------------------------------------
    */
 
-  const canManageMembers = user?.role === "admin" || user?.role === "manager";
+  // Users and roles: Admin only (brief section 7).
+  const canManageMembers = user?.role === "admin";
 
   const canDeleteMembers = user?.role === "admin";
 
@@ -463,7 +465,7 @@ export default function Members() {
                   </td>
 
                   <td>
-                    <Badge>{member.role}</Badge>
+                    <Badge>{roleLabel(member.role)}</Badge>
                   </td>
 
                   <td>{member.jobTitle || "—"}</td>
@@ -622,7 +624,7 @@ export default function Members() {
               >
                 {ROLES.map((role) => (
                   <option key={role} value={role}>
-                    {role.charAt(0).toUpperCase() + role.slice(1)}
+                    {roleLabel(role)}
                   </option>
                 ))}
               </select>
@@ -748,7 +750,7 @@ export default function Members() {
             <div>
               <strong>Role</strong>
               <div>
-                <Badge>{selectedMember.role}</Badge>
+                <Badge>{roleLabel(selectedMember.role)}</Badge>
               </div>
             </div>
 

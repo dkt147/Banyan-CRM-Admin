@@ -28,6 +28,14 @@ import Integrations from "./pages/Integrations";
 import Notifications from "./pages/Notifications";
 import Workspace from "./pages/Workspace";
 import PublicInvoicePayment from "./pages/PublicInvoicePayment";
+import ContactDetail from "./pages/detail/ContactDetail";
+import CompanyDetail from "./pages/detail/CompanyDetail";
+import DealDetail from "./pages/detail/DealDetail";
+import TaskDetail from "./pages/detail/TaskDetail";
+import BookingDetail from "./pages/detail/BookingDetail";
+import Forms from "./pages/Forms";
+import Reports from "./pages/Reports";
+import Settings from "./pages/Settings";
 
 function CRMRoutes() {
   return (
@@ -37,15 +45,25 @@ function CRMRoutes() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/tasks" element={<Tasks />} />
+          <Route path="/tasks/:id" element={<TaskDetail />} />
           <Route path="/inbox" element={<Inbox />} />
           <Route path="/pipelines" element={<Pipelines />} />
           <Route path="/deal" element={<Deal />} />
+          <Route path="/deal/:id" element={<DealDetail />} />
+          <Route path="/deals" element={<Navigate to="/deal" replace />} />
           <Route path="/contact" element={<Contacts />} />
+          <Route path="/contact/:id" element={<ContactDetail />} />
+          <Route path="/contacts" element={<Navigate to="/contact" replace />} />
           <Route path="/companies" element={<Companies />} />
+          <Route path="/companies/:id" element={<CompanyDetail />} />
           <Route path="/activities" element={<Activities />} />
           <Route path="/templates" element={<Templates />} />
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/bookings" element={<Bookings />} />
+          <Route path="/bookings/:id" element={<BookingDetail />} />
+          <Route path="/forms" element={<Forms />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="/agreements" element={<Agreements />} />
           <Route path="/invoices" element={<Invoices />} />
           <Route path="/members" element={<Members />} />

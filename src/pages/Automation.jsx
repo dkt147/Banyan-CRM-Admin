@@ -3,6 +3,7 @@ import { Page, SectionTitle, Empty } from "./Dashboard";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import { useAuth } from "../auth/AuthContext";
+import { usePermissions } from "../utils/permissions";
 
 const INITIAL_FORM = {
   name: "",
@@ -122,6 +123,8 @@ function normalizeRule(rule) {
 
 export default function Automation() {
   const { request } = useAuth();
+  // Admin manages; Sales can view and use (brief section 7).
+  const canManage = usePermissions().can("workflows.manage");
 
   const [rules, setRules] = useState([]);
   const [integrations, setIntegrations] = useState([]);
@@ -601,7 +604,7 @@ export default function Automation() {
       title="Automations & connections"
       kicker="Rules and integration status"
       actions={
-        <button
+        canManage && <button
           type="button"
           className="btn primary"
           onClick={openCreateModal}
@@ -651,7 +654,8 @@ export default function Automation() {
                 <button
                   type="button"
                   className={`switch ${rule.isEnabled ? "on" : ""}`}
-                  onClick={() => toggle(rule)}
+                  disabled={!canManage}
+                  onClick={() => canManage && toggle(rule)}
                   title={
                     rule.isEnabled
                       ? "Disable rule"
@@ -661,13 +665,13 @@ export default function Automation() {
                   <i />
                 </button>
 
-                <button
+                {canManage && <button
                   type="button"
                   className="btn ghost"
                   onClick={() => openExecuteModal(rule)}
                 >
                   Run
-                </button>
+                </button>}
 
                 <button
                   type="button"
@@ -677,13 +681,13 @@ export default function Automation() {
                   History
                 </button>
 
-                <button
+                {canManage && <button
                   type="button"
                   className="btn ghost"
                   onClick={() => openEditModal(rule)}
                 >
                   Edit
-                </button>
+                </button>}
               </div>
             ))
           )}

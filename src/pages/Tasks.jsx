@@ -7,9 +7,14 @@ import {
   ClockCounterClockwise,
   Trash,
 } from "@phosphor-icons/react";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { Page, Empty } from "./Dashboard";
 import Modal from "../components/Modal";
+import { BulkBar, FilterChips, SavedViews, SearchBox, runBulk, useSelection } from "../components/ListKit";
 import { useAuth } from "../auth/AuthContext";
+import { recordHref } from "../utils/recordLinks";
+import { fromHkInput } from "../utils/hkTime";
+import { usePermissions } from "../utils/permissions";
 
 const STATUS_OPTIONS = [
   { value: "pending", label: "Pending" },
@@ -31,8 +36,11 @@ const EMPTY_FORM = {
   description: "",
   dueAt: "",
   priority: "medium",
+  contactId: "",
+  dealId: "",
 };
 const EMPTY_FILTERS = {
+  search: "",
   status: "",
   priority: "",
   assignedTo: "",
@@ -121,13 +129,36 @@ function formatMoney(value, currency = "HKD") {
   }
 }
 
+// A task's contact is its own contactId, or the linked deal's contact for older tasks
+// that were created with a deal only.
+function taskLinks(task) {
+  const deal = task?.dealId && typeof task.dealId === "object" ? task.dealId : null;
+  const contact =
+    (task?.contactId && typeof task.contactId === "object" ? task.contactId : null) ||
+    (deal?.contactId && typeof deal.contactId === "object" ? deal.contactId : null);
+  const company = task?.companyId && typeof task.companyId === "object" ? task.companyId : null;
+  return { deal, contact, company };
+}
+
+function joinWithDots(nodes) {
+  return nodes
+    .filter(Boolean)
+    .flatMap((node, index) => (index ? [<span key={`sep-${index}`}> · </span>, node] : [node]));
+}
+
 function getInitialsCount(filters) {
   return Object.values(filters).filter((value) => value !== "").length;
 }
 
 export default function Tasks() {
   const { request, user } = useAuth();
+  const canWrite = usePermissions().can("records.write");
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const linkedTaskId = searchParams.get("id");
   const [tasks, setTasks] = useState([]);
+  const [notice, setNotice] = useState("");
+  const sel = useSelection(tasks);
   const [members, setMembers] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -248,6 +279,26 @@ export default function Tasks() {
     loadFilterOptions();
   }, [loadTasks, loadSummary, loadFilterOptions]);
 
+  // Applies quick filters, chips and saved views immediately.
+  function applyQuick(patch) {
+    const next = { ...filters, ...patch };
+    setFilters(next);
+    setFilterDraft(next);
+    loadTasks(next);
+  }
+
+  async function bulk(kind) {
+    const ids = sel.ids();
+    if (kind === "delete" && !window.confirm(`Delete ${ids.length} task(s)?`)) return;
+    const result = await runBulk(ids, (id) =>
+      kind === "delete"
+        ? request(`/tasks/${id}`, { method: "DELETE" })
+        : request(`/tasks/${id}/complete`, { method: "PATCH", body: {} }));
+    setNotice(`${result.ok} ${kind === "delete" ? "deleted" : "completed"}${result.failed ? `, ${result.failed} failed: ${result.firstError}` : ""}.`);
+    sel.clear();
+    await Promise.all([loadTasks(filters), loadSummary()]);
+  }
+
   useEffect(() => {
     if (!filterOpen) return undefined;
     const onKeyDown = (event) => {
@@ -290,13 +341,17 @@ export default function Tasks() {
     setSaving(true);
     setError("");
     try {
+      const body = {
+        ...form,
+        dueAt: fromHkInput(form.dueAt).toISOString(),
+        assignedTo: user?._id,
+      };
+      // Optional links: omit when not chosen (the API rejects empty ids).
+      if (!body.contactId) delete body.contactId;
+      if (!body.dealId) delete body.dealId;
       await request("/tasks", {
         method: "POST",
-        body: {
-          ...form,
-          dueAt: new Date(form.dueAt).toISOString(),
-          assignedTo: user?._id,
-        },
+        body,
       });
       setModal(false);
       setForm(EMPTY_FORM);
@@ -510,6 +565,10 @@ export default function Tasks() {
     );
   }
 
+  if (linkedTaskId) return <Navigate to={recordHref.task(linkedTaskId)} replace />;
+
+  const STATUS_CHIPS = STATUS_OPTIONS.map((o) => ({ key: o.value, label: o.label, active: filters.status === o.value }));
+
   return (
     <Page
       title="Tasks"
@@ -517,7 +576,6 @@ export default function Tasks() {
       className="tasks-page"
       actions={
         <div className="tasks-titlebar">
-          <p>Every task below was created by a rule, not by hand</p>
           <div className="tasks-toolbar-actions">
             <button
               type="button"
@@ -532,7 +590,7 @@ export default function Tasks() {
                 <span className="task-filter-count">{activeFilterCount}</span>
               )}
             </button>
-            <button
+            {canWrite && <button
               type="button"
               className="btn primary"
               onClick={() => {
@@ -541,7 +599,7 @@ export default function Tasks() {
               }}
             >
               <Plus size={15} weight="bold" /> New task
-            </button>
+            </button>}
           </div>
         </div>
       }
@@ -552,6 +610,22 @@ export default function Tasks() {
           <span>{error}</span>
         </div>
       )}
+
+      <section className="lk-toolbar">
+        <SearchBox value={filters.search} onChange={(search) => applyQuick({ search })} placeholder="Search task title or description" />
+        <SavedViews page="tasks" current={filters} onApply={(state) => applyQuick({ ...EMPTY_FILTERS, ...state })} />
+      </section>
+      <section className="lk-filterbar">
+        <FilterChips label="Status" chips={STATUS_CHIPS} onToggle={(status) => applyQuick({ status: filters.status === status ? "" : status })} />
+        <FilterChips chips={[{ key: "mine", label: "Assigned to me", active: Boolean(user?._id) && filters.assignedTo === user?._id }]}
+          onToggle={() => applyQuick({ assignedTo: filters.assignedTo === user?._id ? "" : user?._id || "" })}
+          onClear={activeFilterCount ? () => applyQuick(EMPTY_FILTERS) : undefined} />
+      </section>
+      {notice && <div className="notice"><b>Tasks</b><span>{notice}</span></div>}
+      <BulkBar count={canWrite ? sel.count : 0} onClear={sel.clear}>
+        <button type="button" className="btn ghost" onClick={() => bulk("complete")}>Complete</button>
+        <button type="button" className="btn ghost" onClick={() => bulk("delete")}>Delete</button>
+      </BulkBar>
 
       <section className="task-summary-grid" aria-label="Task summary">
         <article className="task-summary-card task-summary-overdue">
@@ -585,20 +659,27 @@ export default function Tasks() {
             <h2 className="task-section-heading">{label}</h2>
             <div className="task-list-card">
               {items.map((task) => {
-                const contact = getPersonName(task.contactId);
-                const company = task.companyId
-                  ? getCompanyName(task.companyId)
-                  : "";
-                const deal = task.dealId ? getDealName(task.dealId) : "";
-                const relation = [deal, company, task.contactId ? contact : ""]
-                  .filter(Boolean)
-                  .filter(
-                    (value, index, values) => values.indexOf(value) === index,
-                  )
-                  .join(" · ");
-                const meta = [task.description, relation]
-                  .filter(Boolean)
-                  .join(" · ");
+                const links = taskLinks(task);
+                const meta = joinWithDots([
+                  task.description && (
+                    <span key="description">{task.description}</span>
+                  ),
+                  links.deal?._id && (
+                    <Link key="deal" className="task-record-link" to={recordHref.deal(links.deal._id)}>
+                      {getDealName(links.deal)}
+                    </Link>
+                  ),
+                  links.company?._id && (
+                    <Link key="company" className="task-record-link" to={recordHref.company(links.company._id)}>
+                      {getCompanyName(links.company)}
+                    </Link>
+                  ),
+                  links.contact?._id && (
+                    <Link key="contact" className="task-record-link" to={recordHref.contact(links.contact._id)}>
+                      {getPersonName(links.contact)}
+                    </Link>
+                  ),
+                ]);
                 const isComplete = task.status === "completed";
                 const dueTime = task.dueAt
                   ? formatDate(
@@ -618,6 +699,13 @@ export default function Tasks() {
                     className={`task-row ${isComplete ? "is-complete" : ""}`}
                     key={task._id}
                   >
+                    {canWrite && <input
+                      type="checkbox"
+                      className="task-select"
+                      aria-label={`Select ${task.title}`}
+                      checked={sel.has(task._id)}
+                      onChange={() => sel.toggle(task._id)}
+                    />}
                     <button
                       type="button"
                       className={`task-complete-toggle ${isComplete ? "checked" : ""}`}
@@ -625,14 +713,21 @@ export default function Tasks() {
                         isComplete ? "Task completed" : `Complete ${task.title}`
                       }
                       title={isComplete ? "Completed" : "Mark complete"}
-                      onClick={() => !isComplete && action(task, "complete")}
-                      disabled={isComplete}
+                      onClick={() => canWrite && !isComplete && action(task, "complete")}
+                      disabled={isComplete || !canWrite}
                     >
                       {isComplete && <Check size={12} weight="bold" />}
                     </button>
                     <div className="task-row-content">
                       <div className="task-row-title-line">
-                        <strong>{task.title}</strong>
+                        <button
+                          type="button"
+                          className="task-title-button"
+                          onClick={() => navigate(recordHref.task(task._id))}
+                          title="Open task"
+                        >
+                          <strong>{task.title}</strong>
+                        </button>
                         {task.priority === "urgent" && (
                           <span className="task-priority-pill urgent">
                             Urgent
@@ -644,7 +739,13 @@ export default function Tasks() {
                           </span>
                         )}
                       </div>
-                      {meta && <p className="task-row-meta">{meta}</p>}
+                      {meta.length > 0 && <p className="task-row-meta">{meta}</p>}
+                      <p className="task-row-facts">
+                        <span className={`task-status task-status-${task.status}`}>
+                          {STATUS_OPTIONS.find((o) => o.value === task.status)?.label || task.status}
+                        </span>
+                        <span>Assigned to {task.assignedTo?.name || "—"}</span>
+                      </p>
                       {task.source === "automation" && (
                         <p className="task-row-automation">
                           Auto-created by automation
@@ -668,7 +769,7 @@ export default function Tasks() {
                     </div>
                     <div className="task-row-side">
                       <time dateTime={task.dueAt || undefined}>{dueTime}</time>
-                      {!isComplete && task.status !== "cancelled" && (
+                      {canWrite && !isComplete && task.status !== "cancelled" && (
                         <div className="task-row-actions">
                           <button
                             type="button"
@@ -821,9 +922,42 @@ export default function Tasks() {
                 ))}
               </select>
             </label>
+            <label>
+              Deal
+              <select
+                value={form.dealId}
+                onChange={(e) => setForm({ ...form, dealId: e.target.value })}
+                disabled={loadingOptions}
+              >
+                <option value="">No deal</option>
+                {deals.map((deal) => (
+                  <option key={deal._id} value={deal._id}>
+                    {getDealName(deal)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Contact
+              <select
+                value={form.contactId}
+                onChange={(e) => setForm({ ...form, contactId: e.target.value })}
+                disabled={loadingOptions}
+              >
+                <option value="">
+                  {form.dealId ? "Use the deal's contact" : "No contact"}
+                </option>
+                {contacts.map((contact) => (
+                  <option key={contact._id} value={contact._id}>
+                    {getPersonName(contact)}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
         </Modal>
       )}
+
     </Page>
   );
 }

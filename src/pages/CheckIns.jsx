@@ -3,6 +3,7 @@ import { Page, Empty } from "./Dashboard";
 import Modal from "../components/Modal";
 import Badge from "../components/Badge";
 import { useAuth } from "../auth/AuthContext";
+import { fromHkInput, toHkInput } from "../utils/hkTime";
 
 const EMPTY_FORM = {
   contactId: "",
@@ -12,18 +13,15 @@ const EMPTY_FORM = {
   source: "manual",
 };
 
+// Hong Kong time for date inputs, whatever the browser time zone.
 function toLocal(value) {
-  if (!value) return "";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "";
-  const offset = d.getTimezoneOffset();
-  return new Date(d.getTime() - offset * 60000).toISOString().slice(0, 16);
+  return toHkInput(value);
 }
 
+// Reads a date input as Hong Kong time.
 function iso(value) {
-  if (!value) return undefined;
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+  const date = fromHkInput(value);
+  return date ? date.toISOString() : undefined;
 }
 
 function idOf(value) {

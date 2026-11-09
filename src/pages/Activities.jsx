@@ -3,6 +3,7 @@ import { Page, Empty } from "./Dashboard";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import { useAuth } from "../auth/AuthContext";
+import { fromHkInput, toHkInput } from "../utils/hkTime";
 
 const ACTIVITY_TYPES = [
   "note",
@@ -83,17 +84,9 @@ function getMetadataText(metadata) {
   }
 }
 
+// Hong Kong time for date inputs, whatever the browser time zone.
 function toLocalDateTimeInput(value) {
-  if (!value) return "";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "";
-
-  const offset = date.getTimezoneOffset();
-  const localDate = new Date(date.getTime() - offset * 60 * 1000);
-
-  return localDate.toISOString().slice(0, 16);
+  return toHkInput(value);
 }
 
 export default function Activities() {
@@ -292,7 +285,7 @@ export default function Activities() {
         body: form.body.trim(),
 
         occurredAt: form.occurredAt
-          ? new Date(form.occurredAt).toISOString()
+          ? fromHkInput(form.occurredAt).toISOString()
           : new Date().toISOString(),
 
         metadata,

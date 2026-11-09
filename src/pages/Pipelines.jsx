@@ -90,7 +90,7 @@ const PIPELINE_STYLES = `
   .pipeline-pagination-info,
   .deal-pagination-info {
     font-size: 13px;
-    color: #666;
+    color: #6b7280;
     white-space: nowrap;
   }
 
@@ -101,7 +101,7 @@ const PIPELINE_STYLES = `
     flex-wrap: wrap;
     margin-bottom: 16px;
     padding: 12px 14px;
-    border: 1px solid #e5e5e5;
+    border: 1px solid #e5e7eb;
     border-radius: 10px;
     background: #fff;
   }
@@ -112,7 +112,7 @@ const PIPELINE_STYLES = `
 
   .pipeline-summary > span {
     font-size: 13px;
-    color: #666;
+    color: #6b7280;
     padding-right: 4px;
   }
 
@@ -126,7 +126,7 @@ const PIPELINE_STYLES = `
     overflow-y: hidden;
     padding: 4px 2px 16px;
     scrollbar-width: thin;
-    scrollbar-color: #aaa #f1f1f1;
+    scrollbar-color: #c4c9d1 #f3f4f6;
   }
 
   .pipeline-kanban-scroll::-webkit-scrollbar {
@@ -134,12 +134,12 @@ const PIPELINE_STYLES = `
   }
 
   .pipeline-kanban-scroll::-webkit-scrollbar-track {
-    background: #f1f1f1;
+    background: #f3f4f6;
     border-radius: 10px;
   }
 
   .pipeline-kanban-scroll::-webkit-scrollbar-thumb {
-    background: #aaa;
+    background: #c4c9d1;
     border-radius: 10px;
   }
 
@@ -155,15 +155,15 @@ const PIPELINE_STYLES = `
     width: 285px;
     min-height: 220px;
     overflow: hidden;
-    border: 1px solid #ddd;
+    border: 1px solid #e5e7eb;
     border-radius: 10px;
     background: #fff;
   }
 
   .pipeline-stage-header {
     padding: 14px;
-    border-bottom: 1px solid #e5e5e5;
-    background: #fafafa;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
   }
 
   .pipeline-stage-header-top {
@@ -180,7 +180,7 @@ const PIPELINE_STYLES = `
 
   .pipeline-stage-title strong {
     display: block;
-    color: #222;
+    color: #1f2328;
     font-size: 15px;
     line-height: 1.35;
     font-weight: 650;
@@ -220,7 +220,7 @@ const PIPELINE_STYLES = `
   .pipeline-stage-probability {
     font-size: 13px;
     font-weight: 650;
-    color: #555;
+    color: #4b5563;
   }
 
   .pipeline-stage-status {
@@ -231,23 +231,23 @@ const PIPELINE_STYLES = `
     border-radius: 999px;
     font-size: 11px;
     font-weight: 600;
-    background: #f0f0f0;
-    color: #555;
+    background: #f1f3f5;
+    color: #4b5563;
   }
 
   .pipeline-stage-status.active {
-    background: #eef6ff;
-    color: #245b8f;
+    background: #eef4ff;
+    color: #2563eb;
   }
 
   .pipeline-stage-status.won {
-    background: #edf8f0;
-    color: #287a3d;
+    background: #e3f6ec;
+    color: #0a7d5a;
   }
 
   .pipeline-stage-status.lost {
-    background: #fff0f0;
-    color: #a33838;
+    background: #fef1f0;
+    color: #b42318;
   }
 
   .pipeline-stage-stats {
@@ -257,17 +257,17 @@ const PIPELINE_STYLES = `
     gap: 8px;
     margin-top: 12px;
     padding-top: 10px;
-    border-top: 1px solid #e9e9e9;
+    border-top: 1px solid #eef0f2;
   }
 
   .pipeline-stage-stats span {
     font-size: 12px;
-    color: #666;
+    color: #6b7280;
   }
 
   .pipeline-stage-stats strong {
     font-size: 13px;
-    color: #222;
+    color: #1f2328;
   }
 
   .pipeline-stage-body {
@@ -276,7 +276,7 @@ const PIPELINE_STYLES = `
     gap: 9px;
     padding: 12px;
     min-height: 130px;
-    background: #f8f8f8;
+    background: #f9fafb;
   }
 
   .pipeline-stage-empty {
@@ -285,7 +285,7 @@ const PIPELINE_STYLES = `
     justify-content: center;
     min-height: 100px;
     text-align: center;
-    color: #888;
+    color: #8a919c;
     font-size: 12px;
   }
 
@@ -295,7 +295,7 @@ const PIPELINE_STYLES = `
     gap: 5px;
     width: 100%;
     padding: 12px;
-    border: 1px solid #ddd;
+    border: 1px solid #e5e7eb;
     border-radius: 8px;
     background: #fff;
     text-align: left;
@@ -308,24 +308,24 @@ const PIPELINE_STYLES = `
 
   .pipeline-deal-card:hover {
     transform: translateY(-1px);
-    border-color: #bbb;
+    border-color: #9ca3af;
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06);
   }
 
   .pipeline-deal-card b {
     font-size: 13px;
     line-height: 1.35;
-    color: #222;
+    color: #1f2328;
   }
 
   .pipeline-deal-card span {
     font-size: 12px;
-    color: #555;
+    color: #4b5563;
   }
 
   .pipeline-deal-card small {
     font-size: 11px;
-    color: #888;
+    color: #8a919c;
   }
 
   .deal-outcome-actions {
@@ -342,13 +342,13 @@ const PIPELINE_STYLES = `
   }
 
   .deal-outcome-actions .deal-mark-lost {
-    border-color: #dfb5b5;
-    color: #9b2c2c;
+    border-color: #f4c7c3;
+    color: #b42318;
   }
 
   .deal-outcome-hint {
     margin: 0 0 16px;
-    color: #777;
+    color: #6b7280;
     font-size: 12px;
     line-height: 1.45;
   }

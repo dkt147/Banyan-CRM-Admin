@@ -5,19 +5,41 @@ import { navItems } from "../data/mock";
 import { useAuth } from "../auth/AuthContext";
 import { longDate } from "../utils/dates";
 import AssistantPanel from "./AssistantPanel";
+import GlobalSearch from "./GlobalSearch";
+import { roleLabel, usePermissions } from "../utils/permissions";
 
-const SIDEBAR_NAV_KEYS = [
-  "dashboard", "tasks", "inbox", "pipelines", "deal", "contact",
-  "templates", "calendar", "agreements", "invoices", "members", "automation",
+// Main navigation in the order of the brief (6.7). `match` lists the route prefixes that
+// highlight the item (e.g. both /calendar and /bookings for Bookings and Calendar).
+const PRIMARY_NAV = [
+  { key: "dashboard", label: "Dashboard", icon: "ChartPieSlice", match: ["dashboard"] },
+  { key: "contact", label: "Contacts", icon: "AddressBook", match: ["contact", "contacts"] },
+  { key: "companies", label: "Companies", icon: "Buildings", match: ["companies"] },
+  { key: "deal", label: "Deals", icon: "Handshake", match: ["deal", "deals"] },
+  { key: "tasks", label: "Tasks", icon: "CheckSquareOffset", match: ["tasks"] },
+  { key: "calendar", label: "Bookings and Calendar", icon: "CalendarDots", match: ["calendar", "bookings"] },
+  { key: "automation", label: "Automations", icon: "FlowArrow", match: ["automation"] },
+  { key: "forms", label: "Forms", icon: "ClipboardText", match: ["forms"] },
+  { key: "reports", label: "Reports", icon: "ChartBar", match: ["reports"] },
+  { key: "settings", label: "Settings", icon: "Gear", match: ["settings", "workspace", "integrations", "audit-logs"] },
 ];
-
-const SIDEBAR_LABELS = { deal: "Deal", contact: "Contacts" };
+// Screens that were in the sidebar before the refresh stay one click away.
+const MORE_NAV = [
+  { key: "inbox", label: "Inbox", icon: "Tray", match: ["inbox"] },
+  { key: "pipelines", label: "Pipelines", icon: "Kanban", match: ["pipelines"] },
+  { key: "templates", label: "Templates", icon: "EnvelopeOpen", match: ["templates"] },
+  { key: "agreements", label: "Agreements", icon: "Signature", match: ["agreements"] },
+  { key: "invoices", label: "Invoices", icon: "Receipt", match: ["invoices"] },
+  { key: "members", label: "Members", icon: "UsersThree", match: ["members"] },
+];
 
 export default function AppShell({ children }) {
   const nav = useNavigate();
   const loc = useLocation();
 
   const { user, logout, request } = useAuth();
+  const { can, readOnly } = usePermissions();
+  // Read-only has no access to workflows or templates (brief section 7).
+  const navVisible = ({ key }) => (key === "automation" ? can("workflows.view") : key === "templates" ? can("templates.use") : true);
 
   const [board, setBoard] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -99,17 +121,16 @@ export default function AppShell({ children }) {
       .join("")
       .toUpperCase() || "BU";
 
-  function renderNavigationItem(item) {
-    const [key, rawLabel, icon] = item;
-    const label = SIDEBAR_LABELS[key] || rawLabel;
+  function renderNavigationItem({ key, label, icon, match }) {
+    const isActive = match.includes(active);
     return (
       <button
         key={key}
         type="button"
-        className={["nav-standalone", active === key ? "active" : ""].filter(Boolean).join(" ")}
+        className={["nav-standalone", isActive ? "active" : ""].filter(Boolean).join(" ")}
         onClick={() => go(key)}
         title={label}
-        aria-current={active === key ? "page" : undefined}
+        aria-current={isActive ? "page" : undefined}
       >
         <Icon name={icon} size={18} />
         <span>{label}</span>
@@ -125,7 +146,9 @@ export default function AppShell({ children }) {
         </div>
 
         <nav className="sidebar-navigation" aria-label="Main navigation">
-          {navItems.filter(([key]) => SIDEBAR_NAV_KEYS.includes(key)).map((item) => renderNavigationItem(item))}
+          {PRIMARY_NAV.filter(navVisible).map(renderNavigationItem)}
+          <span className="nav-section-label">More</span>
+          {MORE_NAV.filter(navVisible).map(renderNavigationItem)}
         </nav>
 
         <div className="sidebar-bottom">
@@ -153,7 +176,7 @@ export default function AppShell({ children }) {
               <div className="sidebar-menu" role="menu">
                 <div className="sidebar-menu-head">
                   <b>{displayName}</b>
-                  <small>{user?.email || user?.jobTitle || user?.role || "CRM user"}</small>
+                  <small>{user?.email || user?.jobTitle || "CRM user"} · {roleLabel(user?.role)}</small>
                 </div>
                 <button type="button" role="menuitem" onClick={() => { setShowSidebarMenu(false); nav("/workspace"); }}>Workspace settings</button>
                 <button type="button" role="menuitem" onClick={() => { setShowSidebarMenu(false); logout(); }}>Sign out</button>
@@ -167,6 +190,7 @@ export default function AppShell({ children }) {
         <header className={`topbar ${dashboardTopbar ? "topbar-dashboard" : ""} ${active === "calendar" ? "topbar-calendar" : ""}`}>
           <div className="topbar-title">
             <strong>Banyan CRM</strong>
+            {readOnly && <span className="role-badge" title="You can view records but not change them">Read-only</span>}
             <span>{active === "calendar"
               ? `Availability · week ${calendarWeek}`
               : active === "dashboard"
@@ -176,6 +200,7 @@ export default function AppShell({ children }) {
 
           {dashboardTopbar ? (
             <div className="top-actions dashboard-global-actions">
+              <GlobalSearch />
               <AskAnythingBar value={askQuery} onChange={setAskQuery} onSubmit={submitAskQuery} />
               <button type="button" className="btn ghost" onClick={() => nav("/activities")}>Log activity</button>
               <button
@@ -186,6 +211,7 @@ export default function AppShell({ children }) {
             </div>
           ) : (
             <div className="top-actions">
+              <GlobalSearch />
               <AskAnythingBar value={askQuery} onChange={setAskQuery} onSubmit={submitAskQuery} />
               <div className="notification-wrap">
                 <button

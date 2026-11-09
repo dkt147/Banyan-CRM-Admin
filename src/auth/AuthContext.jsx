@@ -35,6 +35,13 @@ export function AuthProvider({ children }) {
     setUser(nextUser);
   }, []);
 
+  // Refresh the signed-in user after a profile change (e.g. saved views in preferences).
+  const updateUser = useCallback((nextUser) => {
+    if (!nextUser) return;
+    localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
+    setUser(nextUser);
+  }, []);
+
   const clearSession = useCallback(() => {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
@@ -70,8 +77,10 @@ export function AuthProvider({ children }) {
             const nextToken = await refreshSession();
             return await apiRequest(path, { ...options, token: nextToken });
           } catch (refreshError) {
-            clearSession();
-            throw refreshError;
+            // Only an invalid session signs the user out. A rate limit (429), a server
+            // error or a network failure keeps the session so the user can retry.
+            if ([400, 401, 403].includes(refreshError?.status)) clearSession();
+            throw refreshError?.status === 429 ? refreshError : error;
           }
         }
         throw error;
@@ -95,7 +104,12 @@ export function AuthProvider({ children }) {
           try {
             await refreshSession();
             return true;
-          } catch {}
+          } catch (refreshError) {
+            if (![400, 401, 403].includes(refreshError?.status)) return true;
+          }
+        } else if (error?.status !== 403) {
+          // Rate limit, server or network error: keep the stored session.
+          return true;
         }
         clearSession();
         return false;
@@ -149,9 +163,10 @@ export function AuthProvider({ children }) {
       logout,
       request,
       refreshSession,
+      updateUser,
       apiBaseUrl: API_BASE_URL,
     }),
-    [accessToken, user, isLoading, login, logout, request, refreshSession],
+    [accessToken, user, isLoading, login, logout, request, refreshSession, updateUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

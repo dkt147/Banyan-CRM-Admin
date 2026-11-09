@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Page, SectionTitle, Empty } from "./Dashboard";
 import Modal from "../components/Modal";
 import { useAuth } from "../auth/AuthContext";
+import { usePermissions } from "../utils/permissions";
 
 const empty = {
   name: "",
@@ -15,6 +16,8 @@ const empty = {
 };
 export default function Templates() {
   const { request } = useAuth();
+  // Admin manages; Sales can view and use (brief section 7).
+  const canManage = usePermissions().can("templates.manage");
   const [rows, setRows] = useState([]),
     [selected, setSelected] = useState(null),
     [modal, setModal] = useState(false),
@@ -96,7 +99,7 @@ export default function Templates() {
       title="Templates"
       kicker="Reusable customer communication"
       actions={
-        <button className="btn primary" onClick={openNew}>
+        canManage && <button className="btn primary" onClick={openNew}>
           New template
         </button>
       }
@@ -141,7 +144,7 @@ export default function Templates() {
                   </span>
                   <h2>{selected.name}</h2>
                 </div>
-                <div className="actions">
+                {canManage && <div className="actions">
                   <button className="btn ghost" onClick={duplicate}>
                     Duplicate
                   </button>
@@ -151,7 +154,7 @@ export default function Templates() {
                   <button className="btn ghost" onClick={remove}>
                     Delete
                   </button>
-                </div>
+                </div>}
               </div>
               <SectionTitle title={selected.subject} />
               <div className="template-preview">{selected.body}</div>

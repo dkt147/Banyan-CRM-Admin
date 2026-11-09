@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Page, Empty } from "./Dashboard";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { listenForGoogleOAuth, openGoogleOAuth } from "../utils/googleOAuth";
 
@@ -15,6 +16,8 @@ function itemArray(response) {
 
 export default function Inbox() {
   const { request } = useAuth();
+  const [searchParams] = useSearchParams();
+  const linkedId = searchParams.get("id");
   const [threads, setThreads] = useState([]);
   const [selected, setSelected] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -38,7 +41,7 @@ export default function Inbox() {
       setError("");
       const [inboxResponse, templateResponse, integrationsResponse] = await Promise.all([
         request("/inbox", { query: { limit: 100 } }),
-        request("/templates", { query: { limit: 100 } }),
+        request("/templates", { query: { limit: 100 } }).catch(() => ({ data: [] })),
         request("/integrations", { query: { limit: 100 } }),
       ]);
       const nextThreads = itemArray(inboxResponse);
@@ -75,8 +78,9 @@ export default function Inbox() {
   }
 
   useEffect(() => {
-    load({ preserveSelection: false });
-  }, []);
+    // ?id= opens a specific conversation (linked from connected records).
+    load({ preserveSelection: false }).then(() => { if (linkedId) open(linkedId); });
+  }, [linkedId]);
 
   useEffect(() => listenForGoogleOAuth((result) => {
     setConnecting(false);

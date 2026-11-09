@@ -5,18 +5,18 @@ import { useAuth } from "../auth/AuthContext";
 import { longDate } from "../utils/dates";
 
 const TAB_OPTIONS = ["Overview", "Occupancy", "Revenue", "Sources"];
-const SOURCE_COLORS = ["#243b2a", "#4a6954", "#a9633e", "#9da99c", "#858080"];
+const SOURCE_COLORS = ["#0a7d5a", "#2f9e78", "#d97706", "#a7dcc6", "#8a919c"];
 const REVENUE_COLORS = {
-  Memberships: "#243b2a",
-  "Venue & studio": "#9a5b34",
-  "Meeting rooms": "#4a6b52",
-  "Day passes": "#8aa190",
-  "Other services": "#9b9797",
+  Memberships: "#0a7d5a",
+  "Venue & studio": "#b4540a",
+  "Meeting rooms": "#2f9e78",
+  "Day passes": "#7fcfb0",
+  "Other services": "#8a919c",
 };
 const PIPELINE_RAMPS = {
-  green: ["#243b2a", "#4a6b52", "#8aa190", "#b9c8bb", "#dbe4dc"],
-  orange: ["#9a5b34", "#b98159", "#d2a988", "#e6cfbd"],
-  gray: ["#605d5d", "#9b9797", "#d7d3d3"],
+  green: ["#0a7d5a", "#2f9e78", "#7fcfb0", "#aee3cc", "#d6f2e4"],
+  orange: ["#b4540a", "#f59e0b", "#fbbf24", "#fde68a"],
+  gray: ["#4b5563", "#8a919c", "#e5e7eb"],
 };
 const PIPELINE_TONE_BY_KEY = { "venue-hire": "orange", transactional: "gray" };
 
@@ -891,7 +891,7 @@ export default function Dashboard() {
                               style={{
                                 width: `${Math.max(2, (item.revenue / revenueTotal) * 100)}%`,
                                 background:
-                                  REVENUE_COLORS[item.category] || "#243b2a",
+                                  REVENUE_COLORS[item.category] || "#0a7d5a",
                               }}
                             />
                           </div>
