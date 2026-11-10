@@ -3121,7 +3121,7 @@ export default function Membership() {
 
 
 
-            className={`btn ${tab === "plans" ? "primary" : "ghost"}`}
+            className={`mb-tab ${tab === "plans" ? "on" : ""}`}
 
 
 
@@ -3165,7 +3165,7 @@ export default function Membership() {
 
 
 
-            className={`btn ${tab === "memberships" ? "primary" : "ghost"}`}
+            className={`mb-tab ${tab === "memberships" ? "on" : ""}`}
 
 
 

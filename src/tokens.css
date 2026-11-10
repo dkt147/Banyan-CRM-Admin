@@ -1,0 +1,177 @@
+/* =====================================================================
+   DESIGN TOKENS — CRM redesign style guide (Brevo system), Nov 2026.
+   Loaded first (see main.jsx). Every theme rule should read from these;
+   do not hard-code a hex value that already has a token here.
+   Fonts are loaded in index.html (Inter + Hanken Grotesk).
+   ===================================================================== */
+:root {
+  --font-display: "Hanken Grotesk", "Tomato Grotesk", Verdana, system-ui, sans-serif;
+  --font-body: "Inter", Arial, system-ui, -apple-system, sans-serif;
+
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  /* ---------- Type scale (size / line-height) ---------- */
+  --text-10: 0.625rem;  --lh-10: 0.75rem;
+  --text-12: 0.75rem;   --lh-12: 1rem;
+  --text-14: 0.875rem;  --lh-14: 1.25rem;
+  --text-16: 1rem;      --lh-16: 1.5rem;
+  --text-18: 1.125rem;  --lh-18: 1.5rem;
+  --text-20: 1.25rem;   --lh-20: 1.5rem;
+  --text-24: 1.5rem;    --lh-24: 2rem;
+  --text-28: 1.75rem;
+  --text-32: 2rem;      --lh-32: 2.5rem;
+  --text-40: 2.5rem;    --lh-40: 3rem;
+  --text-48: 3rem;      --lh-48: 4rem;
+
+  /* ---------- Neutral (charcoal) ---------- */
+  --grey-25: #fafafa;
+  --grey-50: #f5f5f5;
+  --grey-75: #d9d9d9;
+  --grey-100: #f0f0f0;
+  --grey-200: #e3e3e3;
+  --grey-300: #cfcfcf;
+  --grey-400: #b5b5b5;
+  --grey-500: #858585;
+  --grey-600: #696969;
+  --grey-700: #474747;
+  --grey-800: #2c2c2c;
+  --grey-900: #1b1b1b;
+
+  /* ---------- Brand palettes ---------- */
+  --mint-100: #f9fff6;  --mint-200: #e8fedf;  --mint-300: #d7fec8;  --mint-400: #c6efb6;
+  --mint-500: #abd799;  --mint-600: #89ae79;  --mint-700: #7d9374;  --mint-800: #6b7e62;  --mint-900: #5c6d55;
+  --mint-bright: #c0ffa5;
+
+  --forest-100: #effaf7; --forest-200: #d8efe8; --forest-300: #b3dfd2; --forest-400: #71c4ab;
+  --forest-500: #48ac8e; --forest-600: #0b996f; --forest-700: #02835c; --forest-800: #006a43;
+  --forest-900: #004227; --forest-950: #002e1e;
+
+  --cream-100: #fffdf6; --cream-200: #fffaeb; --cream-300: #faf5e3; --cream-400: #f4eed7;
+  --cream-500: #e3dec9; --cream-600: #d0cbb5; --cream-700: #b7b098; --cream-800: #958e7b; --cream-900: #797566;
+
+  --iris-100: #efeefc; --iris-200: #dbd9f7; --iris-300: #b3aeef; --iris-400: #8b83e7;
+  --iris-500: #6358de; --iris-600: #594fc8; --iris-700: #4f46b2; --iris-800: #463e9b; --iris-900: #3c3585;
+
+  --sky-100: #e6f3ff; --sky-200: #d6ebff; --sky-300: #bddfff; --sky-400: #add8ff; --sky-500: #94cbff;
+  --sky-600: #7abfff; --sky-700: #5aa3e7; --sky-800: #2675c0; --sky-900: #22609b;
+
+  --coral-100: #fff4f0; --coral-200: #ffdfd1; --coral-300: #ffbb9e; --coral-400: #ff976b; --coral-500: #ff6e3d;
+  --coral-600: #ef6639; --coral-700: #d9592e; --coral-800: #bc4e2d; --coral-900: #a24428;
+
+  --teal-100: #f0fdfd; --teal-200: #dbf4f4; --teal-300: #b3e7e7; --teal-400: #6dd1d1; --teal-500: #1eb8b8;
+  --teal-600: #159f9f; --teal-700: #279696; --teal-800: #116b6b; --teal-900: #0b5454;
+
+  --pink-100: #fff4f9; --pink-200: #fce2eb; --pink-300: #f5d5e1; --pink-400: #f4afc7; --pink-500: #fd86b2;
+  --pink-600: #f26d9e; --pink-700: #f3397e; --pink-800: #d9316c; --pink-900: #b22556;
+
+  --gold-100: #faf9f5; --gold-200: #f2efe5; --gold-300: #e3dbc4; --gold-400: #d1c4a0; --gold-500: #baa873;
+  --gold-600: #af995c; --gold-700: #96834a; --gold-800: #746539; --gold-900: #5c502d;
+
+  --red-100: #ffecee; --red-200: #ffd6db; --red-300: #ffb2bb; --red-400: #ff8d9a; --red-500: #ff6072;
+  --red-600: #ff3a51; --red-700: #e72448; --red-800: #cf1a3b; --red-900: #b81735;
+
+  --yellow-100: #fffbeb; --yellow-200: #fff4cc; --yellow-300: #fee89a; --yellow-400: #fedd67; --yellow-500: #fdd235;
+  --yellow-600: #fcc603; --yellow-700: #deaf02; --yellow-800: #b68f02; --yellow-900: #8e6f01;
+
+  /* ---------- Semantic colors ---------- */
+  --color-text: var(--grey-900);
+  --color-text-secondary: var(--grey-600);
+  --color-text-inverse: #ffffff;
+  --color-link: var(--iris-500);
+
+  --color-primary: var(--grey-900);
+  --color-primary-hover: var(--grey-800);
+  --color-primary-press: var(--grey-700);
+  --color-primary-bg: var(--grey-50);
+
+  --color-info: var(--iris-500);       --color-info-hover: var(--iris-700);    --color-info-press: var(--iris-800);
+  --color-info-bg: var(--iris-100);    --color-info-bg-strong: var(--iris-200);
+  --color-success: var(--forest-600);  --color-success-hover: var(--forest-700); --color-success-press: var(--forest-800);
+  --color-success-bg: var(--forest-100); --color-success-bg-strong: var(--forest-200);
+  --color-danger: var(--red-600);      --color-danger-hover: var(--red-800);   --color-danger-press: var(--red-900);
+  --color-danger-bg: var(--red-100);   --color-danger-bg-strong: var(--red-200);
+  --color-warning: var(--coral-500);   --color-warning-hover: var(--coral-800); --color-warning-press: var(--coral-900);
+  --color-warning-bg: var(--coral-100); --color-warning-bg-strong: var(--coral-200);
+  --color-upgrade: var(--yellow-500);  --color-upgrade-hover: var(--yellow-700); --color-upgrade-press: var(--yellow-900);
+  --color-upgrade-bg: var(--yellow-100); --color-upgrade-border: var(--yellow-700);
+
+  /* ---------- Surfaces ---------- */
+  --surface-page: #ffffff;
+  --surface-card: #ffffff;
+  --surface-sidebar: var(--mint-100);
+  --surface-sidebar-border: var(--forest-200);
+  --surface-nav-hover: var(--mint-200);
+  --surface-nav-active: var(--mint-300);
+  --surface-subtle: var(--grey-50);
+  --surface-muted: var(--grey-100);
+  --surface-hero-cream: var(--cream-300);
+  --surface-hero-mint: var(--mint-200);
+  --surface-overlay: rgba(92, 109, 85, 0.40);
+
+  --border-default: var(--grey-200);
+  --border-strong: var(--grey-300);
+  --border-hover: var(--grey-600);
+  --border-focus: var(--iris-500);
+
+  /* ---------- Gradients ---------- */
+  --grad-primary: linear-gradient(0deg, #1b1b1b 0%, #2c2c2c 100%);
+  --grad-secondary: linear-gradient(0deg, #fafafa 0%, #ffffff 100%);
+  --grad-ai-surface: radial-gradient(at 100% 97.9%, #efeefc 0%, transparent 50%),
+                     radial-gradient(at 29.51% 100%, #f7f7fd 0%, transparent 50%),
+                     radial-gradient(at 63.63% 3.19%, #f8f7fe 0%, transparent 50%), #e1f1ff;
+  --grad-ai-border: radial-gradient(at 100% 97.9%, #f1f0ff 0%, transparent 50%),
+                    radial-gradient(at 92.32% 11.35%, #8b83e7 0%, transparent 50%),
+                    radial-gradient(at 25% 88.49%, #b3aeef 0%, transparent 50%),
+                    radial-gradient(at 9.63% 2.33%, #78beff 0%, transparent 50%),
+                    radial-gradient(at 97.64% 95.8%, #1500ff 0%, transparent 50%), #d7ecff;
+
+  /* ---------- Chart series ---------- */
+  --chart-1: #6459de; --chart-2: #159e9e; --chart-3: #eb4280; --chart-4: #5aa3e7; --chart-5: #deaf02;
+  --chart-6: #96834a; --chart-7: #ef6639; --chart-8: #0b996e; --chart-9: #89af79; --chart-10: #ff384f; --chart-11: #948d7a;
+
+  /* ---------- Spacing (4px grid) ---------- */
+  --space-0: 0; --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px;
+  --space-6: 24px; --space-7: 28px; --space-8: 32px; --space-10: 40px; --space-12: 48px;
+  --space-14: 56px; --space-16: 64px; --space-20: 80px; --space-24: 96px; --space-32: 128px;
+
+  /* ---------- Radius ---------- */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 20px;
+  --radius-xl: 32px;
+  --radius-full: 9999px;
+
+  /* ---------- Shadows ---------- */
+  --shadow-xs: 0 1px 2px rgba(28, 28, 28, 0.08);
+  --shadow-sm: 0 4px 8px -2px rgba(28, 28, 28, 0.14), 0 2px 4px -2px rgba(28, 28, 28, 0.10);
+  --shadow-md: 0 10px 16px -4px rgba(28, 28, 28, 0.10), 0 4px 6px -2px rgba(28, 28, 28, 0.04);
+  --shadow-lg: 0 20px 24px -4px rgba(28, 28, 28, 0.08), 0 8px 8px rgba(28, 28, 28, 0.03);
+  --shadow-drag: 0 20px 32px -4px rgba(28, 28, 28, 0.10), 0 12px 20px -2px rgba(28, 28, 28, 0.10), 0 4px 8px 0 rgba(28, 28, 28, 0.12);
+
+  /* ---------- Motion ---------- */
+  --ease: ease-in-out;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast: 200ms;
+  --dur-base: 300ms;
+  --dur-modal: 350ms;
+  --dur-sidepanel: 500ms;
+
+  /* ---------- Layers ---------- */
+  --z-notification: 800; --z-header: 900; --z-bulkaction: 908; --z-dropdown: 910; --z-nav: 999;
+  --z-modal: 1000; --z-tooltip: 1001; --z-snackbar: 1008; --z-alert: 1009; --z-floating: 1010; --z-loader: 1099;
+
+  /* ---------- Layout ---------- */
+  --sidebar-width: 232px;
+  --sidebar-collapsed-width: 64px;
+  --topbar-height: 56px;
+  --drawer-width: 480px;
+  --modal-width: 592px;
+  --page-padding-x: 32px;
+}
+
+/* Breakpoints: mobile ≤599 · tablet 600–899 · small desktop 900–1199 · medium 1200–1799 · large ≥1800 */

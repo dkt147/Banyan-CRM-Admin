@@ -31,6 +31,7 @@ const MORE_NAV = [
   { key: "invoices", label: "Invoices", icon: "Receipt", match: ["invoices"] },
   { key: "members", label: "Members", icon: "UsersThree", match: ["members"] },
 ];
+const SIDEBAR_COLLAPSED_KEY = "banyan_sidebar_collapsed";
 
 export default function AppShell({ children }) {
   const nav = useNavigate();
@@ -52,11 +53,37 @@ export default function AppShell({ children }) {
   const [askQuery, setAskQuery] = useState("");
   const [assistantPrompt, setAssistantPrompt] = useState("");
   const [assistantLaunchToken, setAssistantLaunchToken] = useState(0);
+  // Sidebar collapses to an icon rail (style guide 6.2); the choice is remembered per browser.
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1"; } catch { return false; }
+  });
+  // Dark tooltip to the right of rail items. Rendered fixed because the nav scrolls and
+  // would clip a CSS-only tooltip. Shown only when labels are hidden (rail width).
+  const [railTip, setRailTip] = useState(null);
+  function showRailTip(event) {
+    const target = event.target.closest?.("[data-tooltip]");
+    const aside = event.currentTarget;
+    // No tooltip over an open menu (e.g. the account menu) or when labels are visible.
+    if (!target || aside.offsetWidth > 120 || target.getAttribute("aria-expanded") === "true") { setRailTip(null); return; }
+    const rect = target.getBoundingClientRect();
+    setRailTip({ label: target.dataset.tooltip, top: rect.top + rect.height / 2, left: rect.right + 12 });
+  }
+  function toggleCollapsed() {
+    setCollapsed((value) => {
+      try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, value ? "0" : "1"); } catch {}
+      return !value;
+    });
+  }
 
   const active = loc.pathname.split("/")[1] || "dashboard";
   const dashboardTopbar = active === "dashboard" || active === "calendar";
 
   const go = (key) => nav("/" + key);
+
+  // Keep the active item visible when the nav list scrolls (e.g. Invoices near the bottom).
+  React.useEffect(() => {
+    document.querySelector(".sidebar .nav-standalone.active")?.scrollIntoView?.({ block: "nearest" });
+  }, [active]);
 
   function submitAskQuery(event) {
     event?.preventDefault?.();
@@ -129,20 +156,44 @@ export default function AppShell({ children }) {
         type="button"
         className={["nav-standalone", isActive ? "active" : ""].filter(Boolean).join(" ")}
         onClick={() => go(key)}
-        title={label}
+        data-tooltip={label}
+        aria-label={label}
         aria-current={isActive ? "page" : undefined}
       >
-        <Icon name={icon} size={18} />
+        <Icon name={icon} size={20} />
         <span>{label}</span>
       </button>
     );
   }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand" aria-label="Banyan Workspace CRM">
-          <img src="/banyan-logo.svg" alt="Banyan" />
+    <div className={["app-shell", collapsed ? "is-collapsed" : ""].filter(Boolean).join(" ")}>
+      <aside
+        className="sidebar"
+        onMouseOver={showRailTip}
+        onFocus={showRailTip}
+        onMouseLeave={() => setRailTip(null)}
+        onBlur={() => setRailTip(null)}
+      >
+        {railTip && (
+          <div className="rail-tooltip" role="tooltip" style={{ top: railTip.top, left: railTip.left }}>
+            {railTip.label}
+          </div>
+        )}
+        <div className="brand-row">
+          <div className="brand" aria-label="Banyan Workspace CRM">
+            <img src="/banyan-logo.svg" alt="Banyan" />
+          </div>
+          <button
+            type="button"
+            className="sidebar-collapse"
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!collapsed}
+            data-tooltip={collapsed ? "Expand sidebar" : undefined}
+          >
+            <Icon name="SidebarSimple" size={20} />
+          </button>
         </div>
 
         <nav className="sidebar-navigation" aria-label="Main navigation">
@@ -156,8 +207,10 @@ export default function AppShell({ children }) {
             type="button"
             className={board ? "active" : ""}
             onClick={() => setBoard(true)}
+            data-tooltip="All screens"
+            aria-label="All screens"
           >
-            <Icon name="SquaresFour" />
+            <Icon name="SquaresFour" size={20} />
             <span>All screens</span>
           </button>
 
@@ -165,12 +218,13 @@ export default function AppShell({ children }) {
             <button
               type="button"
               className="sidebar-avatar-button"
-              onClick={() => setShowSidebarMenu((value) => !value)}
+              onClick={() => { setRailTip(null); setShowSidebarMenu((value) => !value); }}
               aria-label="Account menu"
               aria-expanded={showSidebarMenu}
-              title={displayName}
+              data-tooltip={displayName}
             >
               <span className="avatar">{initials}</span>
+              <span className="sidebar-avatar-name">{displayName}</span>
             </button>
             {showSidebarMenu && (
               <div className="sidebar-menu" role="menu">

@@ -44,11 +44,20 @@ For local development:
 VITE_API_BASE_URL=http://localhost:5000/api/v1
 ```
 
-## Typography
+## Design system
 
-The existing **Source Serif 4** remains the heading/display font.
+The UI follows the CRM redesign style guide (Brevo-based system). Stylesheets load in this order (`src/main.jsx`):
 
-The overall CRM UI now uses **Colin** as the primary interface font with system fallbacks. If Colin is not installed or supplied as a licensed webfont, the browser will use the configured fallback font. A licensed Colin webfont can be added later through `@font-face`.
+1. `src/tokens.css` — every design token (colour palettes, type scale, spacing, radius, shadows, motion, z-index). Use these variables; don't hard-code a hex value that already has a token.
+2. `src/styles.css` — original page/layout styles.
+3. `src/brevo-theme.css` — maps legacy variables onto the tokens and restyles shared components (sidebar, top bar, buttons, inputs, tables, badges, modals, drawers).
+4. `src/crm-ui.css` — list toolbars, detail pages, global search.
+
+Colour roles: near-black for primary actions, mint for navigation, iris (`--iris-500`) for anything interactive or selected, and forest/coral/red/yellow for success/warning/danger/upgrade.
+
+Typography: **Inter** for the UI (16px base) and **Hanken Grotesk** (free stand-in for Tomato Grotesk) for page, modal and drawer titles. Both load from Google Fonts in `index.html`.
+
+The sidebar can collapse to an icon rail with the toggle beside the logo (remembered per browser), and it switches to the rail automatically below 1200px.
 
 ## Live API integration
 
