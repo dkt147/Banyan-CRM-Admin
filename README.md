@@ -38,10 +38,10 @@ The frontend now starts at `/login`.
 - Expired access tokens are refreshed through `/auth/refresh`.
 - Sign out calls `/auth/logout` and clears the local session.
 
-For local development:
+API base URL (production backend on Render; use `http://localhost:5000/api/v1` for a local backend):
 
 ```env
-VITE_API_BASE_URL=http://localhost:5000/api/v1
+VITE_API_BASE_URL=https://banyan-crm-be-n69x.onrender.com/api/v1
 ```
 
 ## Design system
