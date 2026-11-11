@@ -10,6 +10,7 @@ import { recordHref } from "../utils/recordLinks";
 import { personLabel, useLookups } from "../utils/useLookups";
 import { fromHkInput } from "../utils/hkTime";
 import { BOOKING_STATUSES, BOOKING_TYPES, bookingStatusLabel } from "./detail/BookingDetail";
+import RoomBookingModal from "../roomBooking/RoomBookingModal";
 
 const PAGE_SIZE = 25;
 // Cancelled and expired are hidden unless picked (brief 6.2).
@@ -36,7 +37,9 @@ export default function Bookings() {
   const [form, setForm] = useState(blankForm);
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
-  const sel = useSelection(rows);
+  const [roomModal, setRoomModal] = useState(false);
+  // WordPress room bookings are read-only here, so they are not selectable for bulk cancel.
+  const sel = useSelection(rows.filter((b) => !b.externalRef));
   const canWrite = usePermissions().can("bookings.write");
   const legacyId = searchParams.get("id");
 
@@ -84,7 +87,10 @@ export default function Bookings() {
 
   return (
     <Page title="Bookings and Calendar" kicker={`${meta.total} booking${meta.total === 1 ? "" : "s"}`}
-      actions={canWrite && <button type="button" className="btn primary" onClick={() => { setForm(blankForm); setFormError(""); setModal(true); }}>New booking</button>}>
+      actions={canWrite && <>
+        <button type="button" className="btn ghost" onClick={() => { setForm(blankForm); setFormError(""); setModal(true); }}>Other booking</button>
+        <button type="button" className="btn primary" onClick={() => setRoomModal(true)}>Book a meeting room</button>
+      </>}>
       <BookingsTabs active="list" />
       <section className="lk-toolbar">
         <SearchBox value={view.search} onChange={(search) => update({ search })} placeholder="Search room, title or contact" />
@@ -115,7 +121,9 @@ export default function Bookings() {
                 const status = b.displayStatus || b.status;
                 return (
                   <tr key={b._id} className="lk-row" onClick={() => navigate(recordHref.booking(b._id))}>
-                    {canWrite && <CheckCell checked={sel.has(b._id)} onChange={() => sel.toggle(b._id)} label="Select booking" />}
+                    {canWrite && (b.externalRef
+                      ? <td className="lk-check" title="Managed in WordPress" />
+                      : <CheckCell checked={sel.has(b._id)} onChange={() => sel.toggle(b._id)} label="Select booking" />)}
                     <td><b>{new Date(b.startAt).toLocaleDateString("en-GB", { weekday: "short", day: "2-digit", month: "short" })}</b><small>{time(b.startAt)}–{time(b.endAt)}</small></td>
                     <td><Link to={recordHref.booking(b._id)} onClick={(e) => e.stopPropagation()} className="lk-primary">{b.title || b.resourceName || "Booking"}</Link><small>{[b.resourceName, (BOOKING_TYPES.find(([v]) => v === b.bookingType) || [])[1]].filter(Boolean).join(" · ")}</small></td>
                     <td>{contact ? <Link to={recordHref.contact(contact._id)} onClick={(e) => e.stopPropagation()}>{personLabel(contact)}</Link> : <span className="lk-warn-text">Unlinked</span>}</td>
@@ -130,6 +138,8 @@ export default function Bookings() {
         </DataState>
         <Pager page={page} pages={meta.pages} total={meta.total} loading={loading} onPage={setPage} />
       </section>
+
+      {roomModal && <RoomBookingModal onClose={() => setRoomModal(false)} onBooked={load} />}
 
       {modal && (
         <Modal title="New booking" onClose={() => !saving && setModal(false)} actions={<>

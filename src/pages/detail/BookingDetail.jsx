@@ -66,6 +66,9 @@ export default function BookingDetail() {
   const deal = booking?.dealId && typeof booking.dealId === "object" ? booking.dealId : null;
   const withCurrent = (rows, current) => current && !rows.some((r) => r._id === current._id) ? [...rows, current] : rows;
   const contactRequired = booking?.source !== "google";
+  // WordPress room bookings: only the contact/company/deal links can change in the CRM.
+  const wpRef = booking?.externalRef || null;
+  const LINK_FIELDS = ["contactId", "companyId", "dealId"];
 
   return (
     <DetailLayout
@@ -73,14 +76,15 @@ export default function BookingDetail() {
       title={booking ? booking.title || booking.resourceName || "Booking" : ""}
       subtitle={booking ? `${fmtDateTime(booking.startAt)} – ${new Date(booking.endAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : ""}
       loading={loading} error={error} onRetry={load}
-      badges={booking && <><span className={`status-pill status-${status}`}>{bookingStatusLabel(status)}</span>{!contact && <Badge tone="warn">Unlinked</Badge>}<Badge>{booking.source === "website" ? "Website" : booking.source === "google" ? "Google Calendar" : "CRM"}</Badge></>}
-      actions={canWrite && booking && <>
+      badges={booking && <><span className={`status-pill status-${status}`}>{bookingStatusLabel(status)}</span>{!contact && <Badge tone="warn">Unlinked</Badge>}<Badge>{wpRef ? `WordPress · ${wpRef}` : booking.source === "website" ? "Website" : booking.source === "google" ? "Google Calendar" : "CRM"}</Badge></>}
+      actions={canWrite && booking && !wpRef && <>
         {["held", "pending", "pending_payment"].includes(booking.status) && <button type="button" className="btn primary" onClick={() => act("confirm")}>Confirm</button>}
         {!["cancelled", "completed", "refunded"].includes(booking.status) && <button type="button" className="btn ghost" onClick={() => act("cancel")}>Cancel booking</button>}
         <button type="button" className="btn ghost" onClick={remove}>Delete</button>
       </>}
     >
       {actionError && <div className="notice error"><b>Bookings</b><span>{actionError}</span></div>}
+      {wpRef && <div className="notice"><b>Managed in WordPress</b><span>This meeting room booking comes from the website. Cancel or reschedule it in WP Admin → Room Bookings; refunds are issued in Stripe. You can still link it to a contact, company or deal here. <Link to="/room-bookings">See all meeting room bookings</Link>.</span></div>}
       {booking && <>
         <Card title="Linked records">
           <dl className="dl-fields">
@@ -107,7 +111,7 @@ export default function BookingDetail() {
             { key: "dealId", label: "Deal", type: "select", value: deal?._id || "", options: [["", "No deal"], ...withCurrent(deals, deal).map((d) => [d._id, d.title])], display: deal?.title || "—" },
             { key: "price", label: `Price (${booking.currency || "HKD"})`, type: "number", value: booking.price ?? 0 },
             { key: "notes", label: "Notes", type: "textarea", value: booking.notes, span: true },
-          ]}
+          ].map((f) => (wpRef && !LINK_FIELDS.includes(f.key) ? { ...f, readOnly: true, required: false } : f))}
         />
         <Card title="Record">
           <dl className="dl-fields">

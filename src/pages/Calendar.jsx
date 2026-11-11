@@ -8,6 +8,16 @@ import BookingsTabs from "../components/BookingsTabs";
 import { usePermissions } from "../utils/permissions";
 import { fromHkInput, hkAddDays, hkDate, hkDaysInMonth, hkParts, hkSameDay, hkStartOfDay, toHkInput } from "../utils/hkTime";
 import { listenForGoogleOAuth, openGoogleOAuth } from "../utils/googleOAuth";
+import RoomBookingModal from "../roomBooking/RoomBookingModal";
+import RoomBookingPanel from "../roomBooking/RoomBookingPanel";
+import { hkYmd, roomByName, useRoomBookingConfig } from "../roomBooking/roomBooking";
+import { liveCalendarItems, useWpLiveBlocks } from "../roomBooking/useWpLive";
+import { SyncWarning } from "./RoomBookings";
+
+// Rows with externalRef are WordPress room bookings: read-only here, opened in the
+// room-booking side panel, and styled by their WordPress status. "wpLive" items are
+// booked hours read live from the website that the CRM has not synced yet.
+const wpClass = (item) => (item.externalRef ? ` av-wp av-wp-${item.wpStatus || "paid"}` : item.wpLive ? " av-wp av-wp-live" : "");
 
 // Availability screen: a five-day grid of rooms, studios and holds, with room credits,
 // inbound website bookings and double-booking alerts underneath. Data comes from GET /calendar/week.
@@ -139,6 +149,10 @@ export default function Calendar() {
   const [holdCheck, setHoldCheck] = useState(null);    // availability result inside the hold dialog
   const [details, setDetails] = useState(null);        // booking or calendar-event item
   const [eventForm, setEventForm] = useState(null);    // { id, values }
+  const [roomBooking, setRoomBooking] = useState(null); // prefill for the WordPress booking modal
+  const [panelRef, setPanelRef] = useState(null);       // WordPress booking ref in the side panel
+  const [liveInfo, setLiveInfo] = useState(null);       // live website booking not yet synced
+  const roomConfig = useRoomBookingConfig();
   const syncedOnce = useRef(false);
 
   const days = useMemo(() => {
@@ -155,20 +169,27 @@ export default function Calendar() {
     return { start: anchor, days: view === "Day" ? 1 : WEEK_DAYS };
   }, [view, anchor]);
 
+  // Live WordPress booked hours for this window (public API, real time, no CRM sync needed).
+  const live = useWpLiveBlocks(roomConfig, hkYmd(range.start), hkYmd(addDays(range.start, range.days - 1)));
+  const allItems = useMemo(
+    () => (roomConfig ? [...data.items, ...liveCalendarItems(roomConfig, live.blocks, data.items)] : data.items),
+    [data.items, live.blocks, roomConfig],
+  );
+
   useEffect(() => {
     window.dispatchEvent(new CustomEvent("banyan:calendar-window", { detail: { week: isoWeek(anchor) } }));
   }, [anchor]);
 
-  async function loadWeek() {
-    setLoading(true); setError("");
+  async function loadWeek({ silent = false } = {}) {
+    if (!silent) { setLoading(true); setError(""); }
     try {
       const response = await request("/calendar/week", {
         query: { from: range.start.toISOString(), days: range.days },
       });
       setData({ items: [], resources: [], credits: [], inbound: [], conflicts: [], ...(response.data || {}) });
     } catch (e) {
-      setError(e.message || "Could not load availability.");
-    } finally { setLoading(false); }
+      if (!silent) setError(e.message || "Could not load availability.");
+    } finally { if (!silent) setLoading(false); }
   }
 
   async function loadLookups() {
@@ -218,6 +239,13 @@ export default function Calendar() {
     if (connected && !syncedOnce.current) { syncedOnce.current = true; syncFromGoogle({ silent: true }); }
   }); }, []);
   useEffect(() => { loadWeek(); }, [range.start.getTime(), range.days]);
+  // Website bookings arrive by webhook at any time: refresh quietly on focus and every 60 s (spec §6.2).
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === "visible") loadWeek({ silent: true }); };
+    const timer = setInterval(refresh, 60000);
+    window.addEventListener("focus", refresh);
+    return () => { clearInterval(timer); window.removeEventListener("focus", refresh); };
+  }, [range.start.getTime(), range.days]);
   useEffect(() => listenForGoogleOAuth((result) => {
     setConnectingGoogle(false);
     if (result.success) { setError(""); setNotice(result.message || "Google Calendar connected."); loadGoogleStatus(); }
@@ -233,16 +261,16 @@ export default function Calendar() {
   // Grid: rows come from SLOT_ROWS and columns from the date range, never from the data.
   const rows = SLOT_ROWS;
   const visibleItems = useMemo(
-    () => data.items.filter((item) =>
+    () => allItems.filter((item) =>
       (item.kind !== "booking" || statusOn.includes(item.status) || !STATUS_FILTERS.includes(item.status)) &&
       (!resourceFilter || item.resourceName === resourceFilter)),
-    [data.items, statusOn, resourceFilter],
+    [allItems, statusOn, resourceFilter],
   );
   const statusCounts = useMemo(() => {
     const counts = {};
-    data.items.forEach((item) => { if (item.kind === "booking") counts[item.status] = (counts[item.status] || 0) + 1; });
+    allItems.forEach((item) => { if (item.kind === "booking") counts[item.status] = (counts[item.status] || 0) + 1; });
     return counts;
-  }, [data.items]);
+  }, [allItems]);
   // Columns: days in Week view; in Day view one column per configured resource plus an
   // "Other" column. Both come from the date range and the resource list, never from
   // the bookings returned (brief 6.2).
@@ -279,6 +307,15 @@ export default function Calendar() {
     const end = new Date(start.getTime() + 2 * 3600000);
     setHoldCheck(null); setError("");
     setHoldForm({ ...blankHoldForm, resourceName, startAt: toLocalInput(start), endAt: toLocalInput(end) });
+  }
+
+  // Empty slot: meeting rooms are booked through WordPress (spec §6.2/§6.3). In Day view a
+  // non-WordPress resource column keeps the CRM hold dialog; Week view opens the room
+  // booking with the date and hour filled in (the room is picked in step 1).
+  function openEmptySlot(day, hour, resourceName = "") {
+    if (view === "Day" && resourceName && !roomByName(roomConfig, resourceName)) { openHoldAt(day, hour, resourceName); return; }
+    const room = roomByName(roomConfig, resourceName)?.key;
+    setRoomBooking({ room, date: hkYmd(day), hour: Math.floor(hour) });
   }
 
   function openNewHold() {
@@ -335,6 +372,8 @@ export default function Calendar() {
   }
 
   async function openItem(item) {
+    if (item.externalRef) { setPanelRef(item.externalRef); return; }
+    if (item.wpLive) { setLiveInfo(item); return; }
     if (item.kind === "booking") { setDetails(item); return; }
     try {
       const response = await request(`/calendar-events/${item.id}`);
@@ -439,19 +478,22 @@ export default function Calendar() {
   const statusLine = loading
     ? "Loading availability…"
     : isEmptyWeek
-      ? "Nothing booked in this window. Click an empty slot to hold it."
+      ? "Nothing booked in this window. Click an empty slot to book a meeting room."
       : "";
 
   function renderBlock(item) {
     const isHold = item.category === "hold";
-    const sub = isHold ? holdExpiryText(item.holdExpiresAt) : item.subtitle;
+    const wpPending = item.externalRef && item.wpStatus === "pending";
+    const sub = isHold ? holdExpiryText(item.holdExpiresAt)
+      : wpPending && item.holdExpiresAt ? `held until ${new Date(item.holdExpiresAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`
+        : item.subtitle;
     const showStatus = item.status && item.status !== "confirmed" && item.status !== "scheduled" && !(isHold && item.status === "held");
     return <button key={item.id} type="button"
-      className={`av-block av-block-${item.category} av-status-${item.status}`}
+      className={`av-block av-block-${item.category} av-status-${item.status}${wpClass(item)}`}
       onClick={(e) => { e.stopPropagation(); openItem(item); }}
       title={`${item.title} · ${timeRange(item)} · ${statusLabel(item.status)}`}>
       <b>{item.title}</b>
-      {(showStatus || sub) && <span>{showStatus && <em className="av-status-label">{statusLabel(item.status)}</em>}{showStatus && sub ? " · " : ""}{sub}</span>}
+      {(showStatus || sub) && <span>{showStatus && <em className="av-status-label">{wpPending ? "Awaiting payment" : statusLabel(item.status)}</em>}{showStatus && sub ? " · " : ""}{sub}</span>}
     </button>;
   }
 
@@ -469,7 +511,8 @@ export default function Calendar() {
         <div className="av-seg" role="tablist" aria-label="View">
           {VIEWS.map((v) => <button key={v} type="button" role="tab" aria-selected={view === v} className={view === v ? "active" : ""} onClick={() => setView(v)}>{v}</button>)}
         </div>
-        {canBook && <button type="button" className="av-primary" onClick={openNewHold}>Check &amp; hold a slot</button>}
+        {canBook && <button type="button" className="av-secondary" onClick={openNewHold}>Check &amp; hold a slot</button>}
+        {canBook && <button type="button" className="av-primary" onClick={() => setRoomBooking({})}>Book a meeting room</button>}
       </div>
     </header>
 
@@ -477,6 +520,9 @@ export default function Calendar() {
       <div className="av-legend">
         {LEGEND.map((item) => <span key={item.key}><i className={`av-swatch av-swatch-${item.key}`} />{item.label}</span>)}
         <span><i className="av-swatch av-swatch-pending_payment" />Pending payment</span>
+        <span><i className="av-swatch av-swatch-wp-paid" />Room booking (paid)</span>
+        <span><i className="av-swatch av-swatch-wp-blocked" />Blocked in WordPress</span>
+        <span><i className="av-swatch av-swatch-wp-live" />Booked on website (not synced yet)</span>
       </div>
       <div className="av-nav">
         <button type="button" onClick={() => step(-1)} aria-label="Previous"><Icon name="CaretLeft" size={14} /></button>
@@ -501,6 +547,7 @@ export default function Calendar() {
       </select>
     </div>
 
+    <SyncWarning config={roomConfig} />
     {error && <div className="av-notice av-notice-error"><b>Availability</b><span>{error}</span></div>}
     {notice && <div className="av-notice"><b>Update</b><span>{notice}</span></div>}
 
@@ -518,7 +565,7 @@ export default function Calendar() {
             const items = cellItems.get(`${di}|${ri}`) || [];
             const shown = items.length > MAX_BLOCKS_PER_CELL ? items.slice(0, MAX_BLOCKS_PER_CELL - 1) : items;
             const more = items.length - shown.length;
-            return <div key={`${di}-${ri}`} className={`av-cell ${items.length ? "has-items" : ""}`} onClick={() => canBook && items.length === 0 && openHoldAt(day, row, col.resourceName || "")}>
+            return <div key={`${di}-${ri}`} className={`av-cell ${items.length ? "has-items" : ""}`} onClick={() => canBook && items.length === 0 && openEmptySlot(day, row, col.resourceName || "")}>
               {shown.map(renderBlock)}
               {more > 0 && <button type="button" className="av-more" onClick={(e) => { e.stopPropagation(); setCellList({ day, row, items }); }}>+{more}</button>}
             </div>;
@@ -535,7 +582,7 @@ export default function Calendar() {
           const outside = hkParts(day).month !== hkParts(anchor).month;
           return <button key={day.toISOString()} type="button" className={`av-month-cell ${outside ? "outside" : ""} ${sameDay(day, new Date()) ? "today" : ""}`} onClick={() => { setAnchor(day); setView("Day"); }}>
             <b>{hkParts(day).day}</b>
-            {items.slice(0, 3).map((item) => <span key={item.id} className={`av-chip av-block-${item.category} av-status-${item.status}`}>{item.title}</span>)}
+            {items.slice(0, 3).map((item) => <span key={item.id} className={`av-chip av-block-${item.category} av-status-${item.status}${wpClass(item)}`}>{item.externalRef ? monthChip(item, roomConfig) : item.title}</span>)}
             {items.length > 3 && <small>+{items.length - 3} more</small>}
           </button>;
         })}
@@ -609,7 +656,7 @@ export default function Calendar() {
 
     {cellList && <Modal title={`${weekdayDay(cellList.day)} · ${rowLabel(cellList.row)}`} onClose={() => setCellList(null)}>
       <div className="av-cell-list">
-        {cellList.items.map((item) => <button key={item.id} type="button" className={`av-block av-block-${item.category} av-status-${item.status}`} onClick={() => { setCellList(null); openItem(item); }}>
+        {cellList.items.map((item) => <button key={item.id} type="button" className={`av-block av-block-${item.category} av-status-${item.status}${wpClass(item)}`} onClick={() => { setCellList(null); openItem(item); }}>
           <b>{item.title}</b>
           <span>{timeRange(item)} · {statusLabel(item.status)}{item.subtitle ? ` · ${item.subtitle}` : ""}</span>
         </button>)}
@@ -655,7 +702,31 @@ export default function Calendar() {
         <label className="form-span-2">Notes<textarea value={eventForm.values.notes} onChange={(e) => setEventForm({ ...eventForm, values: { ...eventForm.values, notes: e.target.value } })} /></label>
       </div>
     </Modal>}
+
+    {liveInfo && <Modal title="Booked on the website" onClose={() => setLiveInfo(null)} actions={<>
+      <Link className="btn ghost" to="/room-bookings">Open meeting rooms</Link>
+      <button type="button" className="btn primary" onClick={() => setLiveInfo(null)}>Close</button>
+    </>}>
+      <div className="detail-grid">
+        <Detail label="Room" value={liveInfo.resourceName} />
+        <Detail label="Date" value={new Date(liveInfo.startAt).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })} />
+        <Detail label="Time" value={timeRange(liveInfo)} />
+        <Detail label="Status" value="Paid, awaiting payment or blocked in WordPress" />
+      </div>
+      <p className="av-muted">This time is taken on banyanworkspace.com, but the CRM hasn't received the booking details yet. Customer and payment details appear once the CRM syncs with WordPress.</p>
+    </Modal>}
+    {roomBooking && <RoomBookingModal initial={roomBooking} onClose={() => setRoomBooking(null)} onBooked={() => { loadWeek({ silent: true }); live.reload(); }} />}
+    {panelRef && <RoomBookingPanel bookingRef={panelRef} onClose={() => setPanelRef(null)} />}
   </div>;
+}
+
+// Month view chip for a WordPress booking: "10:00 Jane Chan (14p)" (spec §6.2).
+function monthChip(item, config) {
+  const start = new Date(item.startAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  if (item.wpStatus === "blocked") return `${start} ${item.title}`;
+  const room = config?.rooms.find((r) => r.key === item.wpRoomKey);
+  const people = room ? (String(room.capacity).match(/\d+/g) || []).pop() : null;
+  return `${start} ${item.title}${people ? ` (${people}p)` : ""}`;
 }
 
 function bookingTypeLabel(type) {

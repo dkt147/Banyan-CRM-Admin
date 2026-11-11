@@ -12,6 +12,7 @@ import Contacts from "./pages/Contacts";
 import Templates from "./pages/Templates";
 import Calendar from "./pages/Calendar";
 import Bookings from "./pages/Bookings";
+import RoomBookings from "./pages/RoomBookings";
 import Agreements from "./pages/Agreements";
 import Invoices from "./pages/Invoices";
 import Members from "./pages/Members";
@@ -61,6 +62,7 @@ function CRMRoutes() {
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/bookings" element={<Bookings />} />
           <Route path="/bookings/:id" element={<BookingDetail />} />
+          <Route path="/room-bookings" element={<RoomBookings />} />
           <Route path="/forms" element={<Forms />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
