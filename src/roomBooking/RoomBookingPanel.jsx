@@ -2,7 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { recordHref } from "../utils/recordLinks";
-import { customerName, stripeUrl } from "./roomBooking";
+import { usePermissions } from "../utils/permissions";
+import { customerName, isPartnerBlock, partnerTitle, stripeUrl } from "./roomBooking";
 
 // Read-only side panel for one WordPress room booking (GET /room-bookings/:ref).
 // WordPress owns the booking: cancel, reschedule and refunds happen in WP Admin and Stripe.
@@ -18,7 +19,7 @@ export function TestBadge() {
 
 const fmt = (iso) => (iso ? new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong" }) : "—");
 
-export default function RoomBookingPanel({ bookingRef, onClose }) {
+export default function RoomBookingPanel({ bookingRef, onClose, onChanged }) {
   const { request } = useAuth();
   const [row, setRow] = useState(null);
   const [error, setError] = useState("");
@@ -38,7 +39,43 @@ export default function RoomBookingPanel({ bookingRef, onClose }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  const perms = usePermissions();
+  const canWrite = perms.can("bookings.write");
+  const canRefund = perms.can("bookings.refund");
+  const [retrying, setRetrying] = useState(false);
+  const [cancel, setCancel] = useState(null);   // null | { reason, refund, busy, error }
+
+  // POST /room-bookings/:ref/cancel → WordPress cancels (and refunds in Stripe), then the CRM re-syncs.
+  async function submitCancel() {
+    setCancel((c) => ({ ...c, busy: true, error: "" }));
+    try {
+      await request(`/room-bookings/${encodeURIComponent(bookingRef)}/cancel`, {
+        method: "POST",
+        body: { refund: Boolean(cancel.refund), reason: cancel.reason.trim() || undefined },
+      });
+      const fresh = await request(`/room-bookings/${encodeURIComponent(bookingRef)}`).catch(() => null);
+      if (fresh?.data) setRow(fresh.data); else setRow((x) => ({ ...x, status: "cancelled", statusLabel: "Cancelled" }));
+      setCancel(null);
+      onChanged?.();
+    } catch (e) {
+      setCancel((c) => ({ ...c, busy: false, error: e.message || "Could not cancel the booking." }));
+    }
+  }
+  async function retryCalendar() {
+    setRetrying(true);
+    try {
+      const r = await request(`/room-bookings/${encodeURIComponent(bookingRef)}/google-calendar-sync`, { method: "POST", body: {} });
+      const fresh = await request(`/room-bookings/${encodeURIComponent(bookingRef)}`).catch(() => null);
+      setRow((x) => fresh?.data || { ...x, googleCalendar: r.data?.googleCalendar || r.data || x.googleCalendar });
+    } catch (e) {
+      setRow((x) => ({ ...x, googleCalendar: { ...(x.googleCalendar || {}), error: e.message } }));
+    } finally { setRetrying(false); }
+  }
+
   const blocked = row?.status === "blocked";
+  const partner = blocked && isPartnerBlock(row);
+  const gcal = row?.googleCalendar;
+  const roomShort = row?.roomKey === "library" || /library/i.test(row?.roomName || "") ? "Library" : "room";
   const payment = row?.payment;
   const link = stripeUrl(payment);
   const contactId = row?.contact?.id;
@@ -64,10 +101,26 @@ export default function RoomBookingPanel({ bookingRef, onClose }) {
               <dt>Date</dt><dd>{row.dateLabel}</dd>
               <dt>Time</dt><dd>{row.startTime}–{row.endTime} ({row.hours}h)</dd>
               {row.status === "pending" && row.holdExpiresAt && <><dt>Hold ends</dt><dd>{fmt(row.holdExpiresAt)}</dd></>}
-              <dt>Source</dt><dd>{row.channel === "admin" ? "WP Admin" : "Website checkout"}{row.viaCrm ? " · booked via CRM" : ""}</dd>
+              <dt>Source</dt><dd>{partner ? "Partner (calendar) · blocked from the room's Google Calendar" : row.channel === "admin" ? "WP Admin" : "Website checkout"}{row.viaCrm ? " · booked via CRM" : ""}</dd>
+              {row.status === "cancelled" && (row.cancelledAt || row.cancelledBy || row.cancelReason) && <>
+                <dt>Cancelled</dt><dd>{fmt(row.cancelledAt)}{row.cancelledBy ? ` by ${row.cancelledBy}` : ""}</dd>
+                {row.cancelReason && <><dt>Reason</dt><dd>{row.cancelReason}</dd></>}
+              </>}
               <dt>Created</dt><dd>{fmt(row.createdAt)}</dd>
               <dt>Last synced</dt><dd>{fmt(row.syncedAt)}</dd>
             </dl>
+
+            <h3 className="rb-section">Google Calendar</h3>
+            {partner ? <p className="rb-muted">This block comes from your partner's meeting "{partnerTitle(row)}", which is already in the room calendar. It is removed automatically when that meeting is moved or deleted.</p>
+              : !gcal ? <p className="rb-muted">Not in Google Calendar (no calendar is set for this room, the booking predates the setting, or it isn't paid).</p>
+                : <dl>
+                  <dt>Status</dt><dd>{gcal.error ? <span className="rb-error">{gcal.error}</span> : gcal.eventId ? `In ${roomShort} calendar` : gcal.reason || gcal.action || "—"}</dd>
+                  {gcal.syncedAt && <><dt>Updated</dt><dd>{fmt(gcal.syncedAt)}</dd></>}
+                  {gcal.eventId && gcal.reason && !gcal.error && <><dt>Note</dt><dd>{gcal.reason}</dd></>}
+                </dl>}
+            {!partner && canWrite && (gcal?.error || (gcal && !gcal.eventId)) && (
+              <button type="button" className="btn ghost rb-retry" onClick={retryCalendar} disabled={retrying}>{retrying ? "Retrying…" : "Retry calendar update"}</button>
+            )}
 
             <h3 className="rb-section">{blocked ? "Reason" : "Customer"}</h3>
             <dl>
@@ -86,18 +139,60 @@ export default function RoomBookingPanel({ bookingRef, onClose }) {
                 <dt>Amount</dt><dd>{payment.amountLabel || "—"} {payment.currency}{payment.isTest && <> <TestBadge /></>}</dd>
                 <dt>Status</dt><dd>{payment.status || "—"}</dd>
                 <dt>Paid at</dt><dd>{fmt(payment.paidAt)}</dd>
+                {payment.refund && <><dt>Refund</dt><dd>
+                  {payment.refund.status === "succeeded" ? "Refunded" : `Refund ${payment.refund.status || "requested"}`}
+                  {payment.refund.amount != null ? ` HK$${Number(payment.refund.amount).toLocaleString("en-HK")}` : ""}
+                  {payment.refund.id && <span className="rb-mono"> · {payment.refund.id}</span>}
+                </dd></>}
                 <dt>Mode</dt><dd>{payment.mode === "test" ? "Test (excluded from revenue)" : payment.mode === "live" ? "Live" : "—"}</dd>
                 {payment.stripePaymentIntent && <><dt>Payment intent</dt><dd className="rb-mono">{payment.stripePaymentIntent}</dd></>}
                 {payment.stripeSessionId && <><dt>Checkout session</dt><dd className="rb-mono">{payment.stripeSessionId}</dd></>}
               </dl>
             </>}
 
-            <div className="notice rb-readonly"><b>Managed in WordPress</b><span>To cancel, reschedule or block time, use WP Admin → Room Bookings. Refunds are issued in Stripe.</span></div>
+            {Array.isArray(row.timeline) && row.timeline.length > 0 && <>
+              <h3 className="rb-section">History</h3>
+              <ol className="rb-timeline">
+                {row.timeline.map((t, i) => (
+                  <li key={`${t.at}-${i}`}>
+                    <time>{fmt(t.at)}</time>
+                    <span>{t.text}{t.by ? ` · ${t.by}` : ""}</span>
+                  </li>
+                ))}
+              </ol>
+            </>}
+
+            {cancel && (
+              <div className="rb-cancel" role="group" aria-label="Cancel booking">
+                <h3 className="rb-section">Cancel {bookingRef}</h3>
+                <p>The time is freed on the website and the customer gets the normal cancellation email. The event is removed from Google Calendar.</p>
+                <label>Reason (optional)
+                  <textarea rows={2} maxLength={500} value={cancel.reason} disabled={cancel.busy} onChange={(e) => setCancel({ ...cancel, reason: e.target.value })} placeholder="e.g. Customer moved to next week" />
+                </label>
+                {canRefund && row.status === "paid" && (
+                  <label className="fm-inline"><input type="checkbox" checked={cancel.refund} disabled={cancel.busy} onChange={(e) => setCancel({ ...cancel, refund: e.target.checked })} /> Refund in full ({payment?.amountLabel || "the amount paid"}) through Stripe{payment?.isTest ? " (test mode)" : ""}</label>
+                )}
+                {!canRefund && row.status === "paid" && <p className="rb-muted">Only an admin can refund. Cancelling here doesn't refund the payment.</p>}
+                {cancel.error && <div className="notice error"><b>Not cancelled</b><span>{cancel.error}</span></div>}
+              </div>
+            )}
+
+            <div className="notice rb-readonly"><b>Managed in WordPress</b><span>To reschedule or block time, use WP Admin → Room Bookings.{canWrite && ["paid", "pending"].includes(row.status) ? " Cancel below; the change is made in WordPress." : ""}</span></div>
           </>}
         </div>
         <div className="drawer-actions">
-          {link && <a className="btn primary" href={link} target="_blank" rel="noreferrer">View in Stripe</a>}
-          <button type="button" className="btn ghost" onClick={onClose}>Close</button>
+          {cancel ? <>
+            <button type="button" className="btn danger" onClick={submitCancel} disabled={cancel.busy}>
+              {cancel.busy ? "Cancelling…" : cancel.refund ? "Cancel and refund" : "Cancel booking"}
+            </button>
+            <button type="button" className="btn ghost" onClick={() => setCancel(null)} disabled={cancel.busy}>Keep booking</button>
+          </> : <>
+            {link && <a className="btn primary" href={link} target="_blank" rel="noreferrer">View in Stripe</a>}
+            {canWrite && row && !partner && ["paid", "pending"].includes(row.status) && (
+              <button type="button" className="btn ghost" onClick={() => setCancel({ reason: "", refund: false, busy: false, error: "" })}>{row.status === "pending" ? "Cancel hold" : "Cancel booking"}</button>
+            )}
+            <button type="button" className="btn ghost" onClick={onClose}>Close</button>
+          </>}
         </div>
       </aside>
     </div>

@@ -10,8 +10,8 @@ import "./room-booking.css";
 
 // "New booking" for the WordPress meeting rooms: a React port of the website's booking.js
 // (same DOM structure, class names and copy, so it matches the website screenshots).
-// CRM changes (spec §6.3 / §7): notes carry "Booked via CRM by <staff>", there is no
-// redirect to Stripe. After checkout the dialog shows "Waiting for payment" with
+// CRM changes (spec §6.3 / §7): checkout goes through POST /room-bookings/checkout, which
+// adds "Booked via CRM by <staff>" to the notes server-side. There is no redirect to Stripe. After checkout the dialog shows "Waiting for payment" with
 // Open/Copy payment link and polls WordPress /session every 3 s for up to 35 minutes.
 // No card fields: payment only ever happens on Stripe's hosted page.
 
@@ -200,18 +200,19 @@ function BookingDialog({ config: C, initial, onClose, onBooked }) {
     if (msg) return;
     setSubmitting(true);
     try {
-      const j = await wpApi(C, "checkout", {
+      // The CRM server calls WordPress /checkout with its API token (no per-browser rate limit)
+      // and adds "Booked via CRM by <staff>" to the notes itself.
+      const res = await request("/room-bookings/checkout", {
         method: "POST",
         body: {
           room, date, start: sel.start, hours,
           first_name: d.first_name.trim(), last_name: d.last_name.trim(), email: d.email.trim(), phone: d.phone.trim(),
-          notes: [C.notesPrefix, d.notes.trim()].filter(Boolean).join(" – ").slice(0, 1000),
-          website: "",
-          return_url: C.returnUrl,
+          notes: d.notes.trim().slice(0, notesRoom),
         },
       });
+      const j = res.data || res;
       setCheckout({
-        ref: j.ref, url: j.url, sessionId: sessionIdFromUrl(j.url), createdAt: Date.now(),
+        ref: j.ref, url: j.url, sessionId: j.session_id || sessionIdFromUrl(j.url), createdAt: Date.now(),
         roomLabel: roomLabel(r), date, start: sel.start, end: sel.end, hours, amount: r.price * hours, email: d.email.trim(),
       });
       setStep(3);
@@ -253,7 +254,7 @@ function BookingDialog({ config: C, initial, onClose, onBooked }) {
     setResult({ kind: "success", data: session });
     setSyncState("syncing");
     try {
-      await request("/room-bookings/sync", { method: "POST", body: { from: checkout.date, to: checkout.date } });
+      await request("/room-bookings/sync", { method: "POST", body: { ref: checkout.ref } });
       setSyncState("ok");
     } catch { setSyncState("failed"); }
     onBooked?.(session);

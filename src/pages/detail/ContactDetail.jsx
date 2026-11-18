@@ -6,11 +6,13 @@ import { useAuth } from "../../auth/AuthContext";
 import { usePermissions } from "../../utils/permissions";
 import { recordHref } from "../../utils/recordLinks";
 import { invalidateLookups, useLookups } from "../../utils/useLookups";
+import { SEGMENT_TAGS, tagLabel } from "../../utils/contactTags";
+import { TagEditor } from "../../components/ContactTags";
+import NewCompanyModal from "../../components/NewCompanyModal";
 
-export const CONTACT_TAGS = ["prospect", "active_member", "past_member", "event_client", "broker_agent", "ngo", "vip"];
-// Brief section 2 spellings: VIP, NGO, Broker/Agent.
-const TAG_LABELS = { vip: "VIP", ngo: "NGO", broker_agent: "Broker/Agent" };
-export const tagLabel = (t) => TAG_LABELS[t] || String(t).replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+// Kept for older imports; the single tag list lives in utils/contactTags.js.
+export const CONTACT_TAGS = SEGMENT_TAGS;
+export { tagLabel };
 const LANGUAGES = [["en", "English"], ["zh", "Chinese"], ["es", "Spanish"]];
 
 export default function ContactDetail() {
@@ -23,6 +25,7 @@ export default function ContactDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
+  const [newCompany, setNewCompany] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -34,7 +37,6 @@ export default function ContactDetail() {
 
   async function save(changed) {
     const body = { ...changed };
-    if ("tags" in body) body.tags = body.tags ? [body.tags] : [];
     if ("companyId" in body && !body.companyId) body.companyId = null;
     // The API accepts null (not "") to clear optional fields.
     for (const key of ["email", "phone", "whatsapp", "jobTitle", "source", "notes"])
@@ -57,7 +59,6 @@ export default function ContactDetail() {
 
   const name = contact ? [contact.firstName, contact.lastName].filter(Boolean).join(" ") : "";
   const company = contact?.companyId && typeof contact.companyId === "object" ? contact.companyId : null;
-  const tag = Array.isArray(contact?.tags) ? contact.tags.find((t) => CONTACT_TAGS.includes(t)) || "" : "";
 
   return (
     <DetailLayout
@@ -69,6 +70,7 @@ export default function ContactDetail() {
         {contact.isArchived && <Badge tone="warn">Archived</Badge>}
       </>}
       actions={canWrite && contact && <>
+        <button type="button" className="btn ghost" onClick={() => setNewCompany(true)}>New company</button>
         {!contact.isArchived && <button type="button" className="btn ghost" onClick={archive}>Archive</button>}
         <button type="button" className="btn ghost" onClick={remove}>Delete</button>
       </>}
@@ -90,12 +92,12 @@ export default function ContactDetail() {
               options: [["", "No company"], ...companies.map((c) => [c._id, c.name]), ...(company && !companies.some((c) => c._id === company._id) ? [[company._id, company.name]] : [])],
               display: company ? <Link to={recordHref.company(company._id)}>{company.name}</Link> : "—",
             },
-            { key: "tags", label: "Tag", type: "select", value: tag, options: [["", "No tag"], ...CONTACT_TAGS.map((t) => [t, tagLabel(t)])], display: tag ? tagLabel(tag) : "—" },
             { key: "source", label: "Source / referral", value: contact.source },
             { key: "language", label: "Language", type: "select", value: contact.language || "en", options: LANGUAGES, display: (LANGUAGES.find(([v]) => v === contact.language) || [])[1] || contact.language },
             { key: "notes", label: "Notes", type: "textarea", value: contact.notes, span: true },
           ]}
         />
+        <TagEditor tags={contact.tags || []} canEdit={canWrite} onChange={(tags) => save({ tags })} />
         <Card title="Record">
           <dl className="dl-fields">
             <div className="dl-field"><dt>Owner</dt><dd>{contact.ownerId?.name || "—"}</dd></div>
@@ -107,6 +109,9 @@ export default function ContactDetail() {
           </dl>
         </Card>
       </>}
+      {newCompany && <NewCompanyModal
+        onClose={() => setNewCompany(false)}
+        onCreated={async (co) => { await save({ companyId: co._id }); setNewCompany(false); await load(); }} />}
     </DetailLayout>
   );
 }

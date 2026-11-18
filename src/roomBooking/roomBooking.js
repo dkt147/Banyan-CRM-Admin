@@ -104,3 +104,19 @@ export const stripeUrl = (payment) => {
   return payment.stripeUrl || `https://dashboard.stripe.com/${payment.mode === "test" ? "test/" : ""}payments/${payment.stripePaymentIntent}`;
 };
 export const customerName = (c) => [c?.firstName, c?.lastName].filter(Boolean).join(" ");
+/** Blocks created from a partner's Google Calendar event (WordPress block with an external id). */
+export const isPartnerBlock = (b) => Boolean(b?.partnerBlock) || /^Partner:/.test(b?.customer?.notes || b?.notes || "");
+export const partnerTitle = (b) => String(b?.customer?.notes || b?.notes || "").replace(/^Partner:\s*/, "");
+/** API error code from the backend's { code, message } body. */
+export const errorCode = (e) => e?.payload?.code || e?.payload?.error?.code || null;
+/** "just now", "4 min ago", "3 h ago", "2 days ago". */
+export function timeAgo(iso) {
+  if (!iso) return "";
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+  const d = Math.round(s / 86400);
+  return `${d} day${d === 1 ? "" : "s"} ago`;
+}
+export const hkDateTime = (iso) => (iso ? new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: TZ }) : "—");

@@ -7,6 +7,7 @@ import { usePermissions } from "../../utils/permissions";
 import { recordHref } from "../../utils/recordLinks";
 import { invalidateLookups, personLabel, useLookups } from "../../utils/useLookups";
 import { fromHkInput } from "../../utils/hkTime";
+import NewCompanyModal from "../../components/NewCompanyModal";
 
 export const formatMoney = (value, currency = "HKD") => {
   const n = Number(value || 0);
@@ -20,7 +21,8 @@ export default function DealDetail() {
   const navigate = useNavigate();
   const { request } = useAuth();
   const canWrite = usePermissions().can("records.write");
-  const { pipelines } = useLookups(["pipelines"]);
+  const { pipelines, companies } = useLookups(["pipelines", "companies"]);
+  const [newCompany, setNewCompany] = useState(false);
   const [deal, setDeal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -55,6 +57,7 @@ export default function DealDetail() {
       if (Number.isNaN(n) || n < 0) throw new Error("Deal value must be a positive number.");
       body.value = n;
     }
+    if ("companyId" in body && !body.companyId) body.companyId = null;
     if ("paymentReceivedConfirmed" in body) body.paymentReceivedConfirmed = body.paymentReceivedConfirmed === "yes";
     // Dates are Hong Kong calendar dates.
     for (const key of ["expectedCloseDate", "membershipStartAt", "membershipEndAt"])
@@ -84,7 +87,10 @@ export default function DealDetail() {
       title={deal?.title} subtitle={deal ? `Deal ${deal.dealNumber ? `#${deal.dealNumber}` : ""} · ${deal.pipelineId?.name || ""}` : ""}
       loading={loading} error={error} onRetry={load}
       badges={deal && <><Badge>{deal.stageId?.name || "—"}</Badge><Badge tone={deal.status === "won" ? "good" : deal.status === "lost" ? "warn" : ""}>{deal.status}</Badge><b className="dl-amount">{formatMoney(deal.value, deal.currency)}</b></>}
-      actions={canWrite && deal && <button type="button" className="btn ghost" onClick={remove}>Delete</button>}
+      actions={canWrite && deal && <>
+        <button type="button" className="btn ghost" onClick={() => setNewCompany(true)}>New company</button>
+        <button type="button" className="btn ghost" onClick={remove}>Delete</button>
+      </>}
     >
       {actionError && <div className="notice error"><b>Deals</b><span>{actionError}</span></div>}
       {deal && <>
@@ -101,6 +107,11 @@ export default function DealDetail() {
           onSave={save}
           fields={[
             { key: "title", label: "Title", value: deal.title, required: true, span: true },
+            {
+              key: "companyId", label: "Company", type: "select", value: company?._id || "",
+              options: [["", "No company"], ...companies.map((c) => [c._id, c.name]), ...(company && !companies.some((c) => c._id === company._id) ? [[company._id, company.name]] : [])],
+              display: company ? <Link to={recordHref.company(company._id)}>{company.name}</Link> : "—",
+            },
             { key: "value", label: "Value", type: "number", value: deal.value ?? 0, display: formatMoney(deal.value, deal.currency) },
             { key: "productType", label: "Product type", value: deal.productType },
             { key: "status", label: "Status", type: "select", value: deal.status, options: STATUSES, display: (STATUSES.find(([v]) => v === deal.status) || [])[1] },
@@ -132,6 +143,12 @@ export default function DealDetail() {
           <p className="lk-muted">Stage changed {fmtDateTime(deal.stageChangedAt)} · last activity {fmtDateTime(deal.lastActivityAt)}</p>
         </Card>}
       </>}
+      {newCompany && <NewCompanyModal onClose={() => setNewCompany(false)} onCreated={async (co) => {
+        await patch({ companyId: co._id });
+        // A contact without a company gets the new one too, so both records stay in step.
+        if (contact && !contact.companyId) await request(`/contacts/${contact._id}`, { method: "PATCH", body: { companyId: co._id } }).catch(() => {});
+        setNewCompany(false);
+      }} />}
     </DetailLayout>
   );
 }

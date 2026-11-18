@@ -8,7 +8,7 @@ import { recordHref } from "../utils/recordLinks";
 // files and activity. Every item links to its own detail page where one exists.
 
 const SECTIONS = [
-  ["bookings", "Bookings"],
+  ["bookings", "Bookings & purchases"],
   ["deals", "Deals"],
   ["tasks", "Tasks"],
   ["emails", "Emails"],
@@ -21,6 +21,7 @@ const STATUS_LABELS = {
   pending_payment: "Pending payment",
   held: "Provisional hold",
   in_progress: "In progress",
+  purchased: "Purchased",
 };
 
 const fmtDate = (value) => {
@@ -33,6 +34,7 @@ const fmtDate = (value) => {
 const statusLabel = (s) => (s ? STATUS_LABELS[s] || String(s).replace(/_/g, " ") : "");
 
 function itemHref(section, item) {
+  if (item.kind === "purchase") return recordHref.deal(item.dealId);
   if (section === "bookings") return recordHref.booking(item.id);
   if (section === "deals") return recordHref.deal(item.id);
   if (section === "tasks") return recordHref.task(item.id);
@@ -54,6 +56,9 @@ function ItemBody({ item }) {
     </>
   );
 }
+
+// Purchases (day passes, packages, venue/studio hire) come from GET /related in the
+// bookings section with kind: "purchase", id "deal-<id>" and dealId.
 
 /** One GET /related/:type/:id per record, shared by the timeline and the tabs. */
 export function useRelated(type, id) {
@@ -111,7 +116,8 @@ export default function RelatedRecords({ type, id, showLinks = true, related: sh
     links.company && ["Company", recordHref.company(links.company.id), links.company.label],
     links.deal && ["Deal", recordHref.deal(links.deal.id), links.deal.label],
   ].filter(Boolean);
-  const current = data?.sections?.[tab] || { total: 0, items: [] };
+  const sectionOf = (key) => data?.sections?.[key] || { total: 0, items: [] };
+  const current = sectionOf(tab);
 
   return (
     <section className="rr" aria-label="Connected records">
@@ -137,7 +143,7 @@ export default function RelatedRecords({ type, id, showLinks = true, related: sh
             onClick={() => setTab(key)}
           >
             {label}
-            <span className="rr-count">{data ? data.sections?.[key]?.total ?? 0 : "–"}</span>
+            <span className="rr-count">{data ? sectionOf(key).total ?? 0 : "–"}</span>
           </button>
         ))}
       </div>

@@ -9,7 +9,22 @@ import { recordHref } from "../utils/recordLinks";
 import RoomBookingModal from "../roomBooking/RoomBookingModal";
 import RoomBookingPanel, { RoomStatusBadge, TestBadge } from "../roomBooking/RoomBookingPanel";
 import RoomAvailability from "../roomBooking/RoomAvailability";
-import { FALLBACK_CONFIG, customerName, stripeUrl, useRoomBookingConfig } from "../roomBooking/roomBooking";
+import RoomCalendarSettings from "../roomBooking/RoomCalendarSettings";
+import PartnerBlocksPanel from "../roomBooking/PartnerBlocksPanel";
+import { FALLBACK_CONFIG, customerName, isPartnerBlock, partnerTitle, stripeUrl, timeAgo, useRoomBookingConfig } from "../roomBooking/roomBooking";
+
+/** "Synced 1 min ago" from GET /room-bookings/config lastSync, or the last sync error. */
+export function SyncStatus({ config }) {
+  const s = config?.lastSync;
+  if (!s?.at) return null;
+  if (s.error) return <div className="notice error rb-sync-warning"><b>WordPress sync failed {timeAgo(s.at)}</b><span>{s.error}</span></div>;
+  const counts = [s.created && `${s.created} new`, s.updated && `${s.updated} updated`].filter(Boolean).join(", ");
+  return (
+    <p className="lk-muted rb-sync-status">
+      Synced from WordPress {timeAgo(s.at)}{counts ? ` (${counts})` : ""}{config.syncIntervalMinutes ? ` · checks every ${config.syncIntervalMinutes} min` : ""}
+    </p>
+  );
+}
 
 /** Shown while the CRM server can't read WordPress bookings (no BANYAN_CRM_TOKEN). */
 export function SyncWarning({ config }) {
@@ -37,6 +52,8 @@ export default function RoomBookings() {
   const [range, setRange] = useState("upcoming");
   const [room, setRoom] = useState("");
   const [search, setSearch] = useState("");
+  const [from, setFrom] = useState("");   // YYYY-MM-DD, Hong Kong dates, inclusive
+  const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
   const [rows, setRows] = useState([]);
   const [meta, setMeta] = useState({ total: 0, pages: 1 });
@@ -47,17 +64,18 @@ export default function RoomBookings() {
   const [newBooking, setNewBooking] = useState(null);   // prefill { room, date, hour } or {}
   const [openRef, setOpenRef] = useState(null);
   const [bookedTick, setBookedTick] = useState(0);
+  const [partnerOn, setPartnerOn] = useState(null);
   const config = useRoomBookingConfig();
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const r = await request("/room-bookings", { query: { status, range, room, search, page, limit: PAGE_SIZE } });
+      const r = await request("/room-bookings", { query: { status, range: from || to ? "all" : range, from, to, room, search, page, limit: PAGE_SIZE } });
       setRows(r.data?.items || []);
       setMeta({ total: r.data?.pagination?.total || 0, pages: r.data?.pagination?.pages || 1 });
     } catch (e) { setError(e.message || "Failed to load room bookings."); setRows([]); }
     finally { setLoading(false); }
-  }, [request, status, range, room, search, page]);
+  }, [request, status, range, from, to, room, search, page]);
   useEffect(() => { load(); }, [load]);
 
   async function syncNow() {
@@ -73,6 +91,12 @@ export default function RoomBookings() {
   }
 
   const reset = (fn) => (v) => { fn(v); setPage(1); };
+  const dated = Boolean(from || to);
+  const setWhen = (v) => { setFrom(""); setTo(""); reset(setRange)(v); };
+  const defaultView = status === "active" && range === "upcoming" && !dated && !room && !search;
+  const emptyText = defaultView
+    ? <>No upcoming active bookings. <button type="button" className="av-link" onClick={() => setWhen("all")}>Show all dates</button> to see past ones.</>
+    : <>No meeting room bookings match these filters. <button type="button" className="av-link" onClick={() => { setStatus("active"); setRoom(""); setSearch(""); setWhen("all"); }}>Clear filters</button></>;
 
   return (
     <Page title="Bookings and Calendar" kicker={`${meta.total} meeting room booking${meta.total === 1 ? "" : "s"}`}
@@ -82,7 +106,10 @@ export default function RoomBookings() {
       </>}>
       <BookingsTabs active="rooms" />
       <SyncWarning config={config} />
+      <SyncStatus config={config} />
       {config && <RoomAvailability config={config} canBook={canWrite} onBook={setNewBooking} onOpenRef={setOpenRef} refreshKey={bookedTick} />}
+      <RoomCalendarSettings onChange={(d) => setPartnerOn(Boolean(d.partnerBlocks?.enabled))} />
+      <PartnerBlocksPanel enabledHint={partnerOn} onOpenRef={setOpenRef} />
       <h2 className="rb-list-title">All meeting room bookings</h2>
       <section className="lk-toolbar">
         <SearchBox value={search} onChange={reset(setSearch)} placeholder="Search name, email, phone or BNY- reference" />
@@ -90,15 +117,18 @@ export default function RoomBookings() {
           <option value="">All rooms</option>
           {FALLBACK_CONFIG.rooms.map((r) => <option key={r.key} value={r.key}>{r.name} ({r.capacity})</option>)}
         </select>
+        <label className="rb-daterange">From<input type="date" value={from} max={to || undefined} onChange={(e) => reset(setFrom)(e.target.value)} /></label>
+        <label className="rb-daterange">To<input type="date" value={to} min={from || undefined} onChange={(e) => reset(setTo)(e.target.value)} /></label>
+        {dated && <button type="button" className="btn ghost" onClick={() => setWhen(range)}>Clear dates</button>}
       </section>
       <section className="lk-filterbar">
         <FilterChips label="Status" chips={STATUS_FILTERS.map(([key, label]) => ({ key, label, active: status === key }))} onToggle={reset(setStatus)} />
-        <FilterChips label="When" chips={RANGES.map(([key, label]) => ({ key, label, active: range === key }))} onToggle={reset(setRange)} />
+        <FilterChips label="When" chips={RANGES.map(([key, label]) => ({ key, label, active: !dated && range === key }))} onToggle={setWhen} />
       </section>
       {notice && <div className="notice"><b>Room bookings</b><span>{notice}</span></div>}
 
       <section className="panel lk-table-wrap">
-        <DataState loading={loading} error={error} onRetry={load} empty={rows.length === 0} emptyText="No meeting room bookings match these filters.">
+        <DataState loading={loading} error={error} onRetry={load} empty={rows.length === 0} emptyText={emptyText}>
           <table className="lk-table rb-table">
             <thead>
               <tr><th>Ref</th><th>Room</th><th>Date</th><th>Time</th><th>Customer</th><th>Amount</th><th>Status</th><th>Source</th><th aria-label="Actions" /></tr>
@@ -106,8 +136,9 @@ export default function RoomBookings() {
             <tbody className={loading ? "lk-dim" : ""}>
               {rows.map((b) => {
                 const blocked = b.status === "blocked";
+                const partner = blocked && isPartnerBlock(b);
                 const link = stripeUrl(b.payment);
-                const notes = b.customer?.notes || "";
+                const notes = partner ? "" : b.customer?.notes || "";
                 return (
                   <tr key={b.ref} className="lk-row" onClick={() => setOpenRef(b.ref)}>
                     <td><button type="button" className="lk-primary rb-ref" onClick={(e) => { e.stopPropagation(); setOpenRef(b.ref); }}>{b.ref}</button></td>
@@ -115,7 +146,8 @@ export default function RoomBookings() {
                     <td className="rb-nowrap">{b.dateLabel}</td>
                     <td className="rb-nowrap">{b.startTime}–{b.endTime}<small>{b.hours}h</small></td>
                     <td className="rb-customer">
-                      {blocked ? <b>Blocked</b> : b.contact?.id
+                      {partner ? <><b>Partner (calendar)</b><small className="rb-truncate" title={partnerTitle(b)}>{partnerTitle(b)}</small></>
+                        : blocked ? <b>Blocked</b> : b.contact?.id
                         ? <Link to={recordHref.contact(b.contact.id)} onClick={(e) => e.stopPropagation()}><b>{customerName(b.customer)}</b></Link>
                         : <b>{customerName(b.customer) || "—"}</b>}
                       {!blocked && (b.customer?.email || b.customer?.phone) && <small>
@@ -126,7 +158,7 @@ export default function RoomBookings() {
                     </td>
                     <td className="rb-nowrap">{blocked ? "—" : <>{b.payment?.amountLabel || "—"}{b.payment?.isTest && <> <TestBadge /></>}</>}</td>
                     <td><RoomStatusBadge status={b.status} label={b.statusLabel} /></td>
-                    <td className="rb-nowrap">{b.channel || "—"}{b.viaCrm && <span className="rb-source">CRM</span>}</td>
+                    <td className="rb-nowrap">{partner ? "Partner calendar" : b.channel || "—"}{b.viaCrm && <span className="rb-source">CRM</span>}</td>
                     <td className="rb-nowrap">{link && <a href={link} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>View in Stripe</a>}</td>
                   </tr>
                 );
@@ -138,7 +170,7 @@ export default function RoomBookings() {
       </section>
 
       {newBooking && <RoomBookingModal initial={newBooking} onClose={() => setNewBooking(null)} onBooked={() => { load(); setBookedTick((n) => n + 1); }} />}
-      {openRef && <RoomBookingPanel bookingRef={openRef} onClose={() => setOpenRef(null)} />}
+      {openRef && <RoomBookingPanel bookingRef={openRef} onClose={() => setOpenRef(null)} onChanged={() => { load(); setBookedTick((n) => n + 1); }} />}
     </Page>
   );
 }

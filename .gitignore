@@ -6,3 +6,5 @@ node_modules
 # Generated production bundle
 
 dist/
+.vercel
+.env*

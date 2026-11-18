@@ -7,9 +7,20 @@ import { recordHref } from "../utils/recordLinks";
 import BookingsTabs from "../components/BookingsTabs";
 import { usePermissions } from "../utils/permissions";
 import { fromHkInput, hkAddDays, hkDate, hkDaysInMonth, hkParts, hkSameDay, hkStartOfDay, toHkInput } from "../utils/hkTime";
-import { listenForGoogleOAuth, openGoogleOAuth } from "../utils/googleOAuth";
+import { GOOGLE_POPUP_HINT, listenForGoogleOAuth, openGoogleOAuth } from "../utils/googleOAuth";
 import RoomBookingModal from "../roomBooking/RoomBookingModal";
 import RoomBookingPanel from "../roomBooking/RoomBookingPanel";
+import { LIBRARY_CALENDAR_ID } from "../roomBooking/RoomCalendarSettings";
+
+// Events imported from the shared room calendars (partner's Library calendar, meeting
+// rooms calendar) are read-only: the CRM must never edit or delete them.
+function isRoomCalendarEvent(event, config) {
+  if (event?.metadata?.readOnly === true) return true;   // set by the backend on room-calendar imports
+  const calId = event?.metadata?.googleCalendarId;
+  if (!calId) return false;
+  const ids = new Set([LIBRARY_CALENDAR_ID, ...Object.values(config?.googleCalendars || {})].filter(Boolean));
+  return ids.has(calId);
+}
 import { hkYmd, roomByName, useRoomBookingConfig } from "../roomBooking/roomBooking";
 import { liveCalendarItems, useWpLiveBlocks } from "../roomBooking/useWpLive";
 import { SyncWarning } from "./RoomBookings";
@@ -254,7 +265,7 @@ export default function Calendar() {
 
   async function connectGoogle() {
     setConnectingGoogle(true); setError("");
-    try { await openGoogleOAuth(request); }
+    try { const r = await openGoogleOAuth(request); setConnectingGoogle(false); if (r.inPopup) setNotice(GOOGLE_POPUP_HINT); }
     catch (e) { setConnectingGoogle(false); setError(e.message || "Could not start Google authorization."); }
   }
 
@@ -640,9 +651,10 @@ export default function Calendar() {
     </Modal>}
 
     {details && details.kind === "event" && <Modal title={details.title} onClose={() => setDetails(null)} actions={<>
-      {canBook && <button className="btn ghost" onClick={() => removeEvent(details.event || { _id: details.id, externalProvider: "" })}>{details.source === "google" ? "Cancel" : "Delete"}</button>}
-      {canBook && details.event && <button className="btn primary" onClick={() => editEvent(details.event)}>Edit event</button>}
+      {canBook && !isRoomCalendarEvent(details.event, roomConfig) && <button className="btn ghost" onClick={() => removeEvent(details.event || { _id: details.id, externalProvider: "" })}>{details.source === "google" ? "Cancel" : "Delete"}</button>}
+      {canBook && details.event && !isRoomCalendarEvent(details.event, roomConfig) && <button className="btn primary" onClick={() => editEvent(details.event)}>Edit event</button>}
     </>}>
+      {isRoomCalendarEvent(details.event, roomConfig) && <div className="notice"><b>Read-only</b><span>This event is in a shared room calendar (Library or meeting rooms). The CRM never changes or deletes these events. Edit it in Google Calendar if needed.</span></div>}
       <div className="detail-grid">
         <Detail label="Type" value={details.bookingType} />
         <Detail label="Status" value={details.status} />
@@ -716,7 +728,7 @@ export default function Calendar() {
       <p className="av-muted">This time is taken on banyanworkspace.com, but the CRM hasn't received the booking details yet. Customer and payment details appear once the CRM syncs with WordPress.</p>
     </Modal>}
     {roomBooking && <RoomBookingModal initial={roomBooking} onClose={() => setRoomBooking(null)} onBooked={() => { loadWeek({ silent: true }); live.reload(); }} />}
-    {panelRef && <RoomBookingPanel bookingRef={panelRef} onClose={() => setPanelRef(null)} />}
+    {panelRef && <RoomBookingPanel bookingRef={panelRef} onClose={() => setPanelRef(null)} onChanged={() => loadWeek({ silent: true })} />}
   </div>;
 }
 

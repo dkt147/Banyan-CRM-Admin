@@ -15,6 +15,7 @@ const PERMISSIONS = {
   "workflows.manage": ["admin"],
   "templates.use": ["admin", "sales"],
   "templates.manage": ["admin"],
+  "forms.manage": ["admin"],
   "users.manage": ["admin"],
   "workspace.manage": ["admin"],
 };

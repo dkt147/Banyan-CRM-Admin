@@ -355,3 +355,134 @@
 .av-swatch-wp-live, .av-block.av-wp-live, .av-chip.av-wp-live { background: #e8efeb !important; color: #2D5F4C !important; border: 1px solid #2D5F4C; }
 .rb-sync-warning { margin-bottom: 16px; }
 .rb-list-title { margin: 8px 0 12px; font-size: var(--text-20, 20px); font-weight: var(--fw-semibold); }
+
+/* ---------- Contact tags (one list everywhere) ---------- */
+.tag-editor { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.tag-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; border-radius: var(--radius-pill); background: var(--grey-100); font-size: var(--text-14); }
+.tag-chip.tag-segment { background: var(--color-success-bg-strong); color: var(--forest-900); }
+.tag-chip.tag-source { background: var(--color-info-bg); color: var(--iris-800); }
+.tag-chip button { all: unset; cursor: pointer; width: 18px; height: 18px; border-radius: 50%; text-align: center; line-height: 18px; }
+.tag-chip button:hover { background: rgba(0,0,0,.08); }
+.tag-chip button:focus-visible { outline: 2px solid var(--color-link); }
+.tag-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tag-add select, .tag-add input { height: 36px; padding: 0 10px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-card); }
+.tag-guide { margin: 8px 0 16px; font-size: var(--text-14); }
+.tag-guide summary { cursor: pointer; color: var(--color-link); font-weight: var(--fw-semibold); }
+.tag-guide p { color: var(--color-text-secondary); margin: 8px 0; }
+.tag-guide h4 { margin: 12px 0 4px; font-size: var(--text-14); }
+.tag-guide dl { display: grid; grid-template-columns: 150px 1fr; gap: 4px 12px; margin: 0; }
+.tag-guide dt { font-weight: var(--fw-semibold); }
+.tag-guide dd { margin: 0; color: var(--color-text-secondary); }
+.lk-select-filter { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-14); color: var(--color-text-secondary); }
+.lk-select-filter select { height: 32px; padding: 0 10px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-card); }
+
+/* ---------- Forms builder ---------- */
+.fm-howto { padding: 16px 24px; margin-bottom: 16px; }
+.fm-howto h3 { margin: 0 0 8px; font-size: var(--text-16); }
+.fm-howto ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: var(--text-14); }
+.fm-actions { white-space: nowrap; text-align: right; }
+.fm-actions .btn { margin-left: 4px; }
+.modal.fm-modal, .modal.tp-modal { max-width: min(1080px, calc(100vw - 32px)); width: 100%; }
+.fm-editor { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 24px; }
+.fm-editor h4 { margin: 18px 0 8px; font-size: var(--text-14); text-transform: uppercase; letter-spacing: .04em; color: var(--color-text-secondary); }
+.fm-editor h4:first-child { margin-top: 0; }
+.fm-fields { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; }
+.fm-fields li { padding: 10px; border: 1px solid var(--border-default); border-radius: var(--radius-md); display: grid; gap: 8px; }
+.fm-field-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.fm-field-row > input { flex: 1 1 160px; }
+.fm-field-tools { margin-left: auto; display: inline-flex; gap: 2px; }
+.fm-inline { display: inline-flex !important; align-items: center; gap: 6px; flex-direction: row !important; }
+.fm-grow { flex: 1 1 220px; align-items: flex-start !important; }
+.fm-grow textarea { flex: 1; }
+.fm-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.fm-right { position: sticky; top: 0; align-self: start; }
+.fm-preview { display: grid; gap: 12px; padding: 16px; border: 1px dashed var(--border-default); border-radius: var(--radius-md); background: var(--surface-page); }
+.fm-p-field { display: grid; gap: 4px; }
+.fm-p-label { font-size: 12px; font-weight: var(--fw-semibold); text-transform: uppercase; letter-spacing: .04em; }
+.fm-p-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; font-size: var(--text-14); }
+.fm-p-consent { font-size: var(--text-14); }
+.fm-snippet { max-height: 320px; overflow: auto; padding: 12px; border-radius: var(--radius-md); background: var(--grey-100); font-size: 12px; white-space: pre; }
+@media (max-width: 900px) { .fm-editor { grid-template-columns: minmax(0, 1fr); } .fm-right { position: static; } }
+
+/* ---------- Reports ---------- */
+.rp-toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
+.rp-toolbar select { height: 36px; padding: 0 10px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-card); }
+.rp-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 0 0 16px; }
+.rp-tile { display: grid; gap: 4px; padding: 14px 16px; }
+.rp-tile span { font-size: var(--text-14); color: var(--color-text-secondary); }
+.rp-tile b { font-size: var(--text-24, 24px); }
+.rp-tile small { color: var(--color-text-secondary); }
+.rp-periodic th, .rp-periodic td { white-space: nowrap; }
+.rp-periodic tfoot td { border-top: 2px solid var(--border-default); }
+.lk-table-wrap + .rp-card { margin-top: 16px; }
+
+/* ---------- Templates ---------- */
+.tp-guide { padding: 12px 24px; margin-bottom: 16px; }
+.tp-guide summary { cursor: pointer; font-weight: var(--fw-semibold); color: var(--color-link); }
+.tp-guide-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 8px; font-size: var(--text-14); }
+.tp-guide h4 { margin: 8px 0 4px; }
+.tp-guide p { margin: 0; color: var(--color-text-secondary); }
+.tp-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 12px 0; }
+.tp-vars { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; font-size: var(--text-14); }
+.tp-body { width: 100%; font-family: var(--font-mono, ui-monospace, monospace); font-size: 13px; }
+.tp-preview { display: grid; gap: 8px; }
+.tp-preview-subject { display: flex; gap: 8px; align-items: baseline; padding: 8px 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); }
+.tp-preview-subject span { color: var(--color-text-secondary); font-size: 12px; text-transform: uppercase; }
+.tp-frame { width: 100%; min-height: 480px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: #fff; }
+@media (max-width: 760px) { .tp-guide-grid { grid-template-columns: 1fr; } }
+
+/* ---------- Google Calendar for room bookings ---------- */
+.rb-gcal { padding: 12px 24px; margin-bottom: 16px; }
+.rb-gcal summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.rb-gcal[open] summary { margin-bottom: 12px; }
+.rb-gcal h4 { margin: 16px 0 6px; font-size: var(--text-14); }
+.rb-gcal-rules { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 4px; font-size: var(--text-14); }
+.rb-gcal input { font-family: var(--font-mono, ui-monospace, monospace); font-size: 13px; }
+.rb-gcal label small { display: block; margin-top: 4px; font-size: 12px; }
+.rb-gcal-toggle { align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); }
+.rb-gcal-toggle input { margin-top: 3px; }
+.rb-gcal-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.rb-backfill { margin-top: 12px; overflow-x: auto; }
+.rb-sync-status { margin: 0 0 12px; font-size: var(--text-14); }
+
+/* ---------- Partner meetings → WordPress blocks ---------- */
+.rb-partner { padding: 16px 24px; margin-bottom: 16px; }
+.rb-partner.has-clash { border-color: var(--red-900); }
+.rb-partner-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.rb-partner-head h3 { margin: 0 0 2px; font-size: var(--text-16, 16px); }
+.rb-partner-head p { margin: 0; font-size: var(--text-14); }
+.rb-partner-actions { display: flex; gap: 8px; }
+.rb-clashes { margin-top: 12px; padding: 12px 16px; border-radius: var(--radius-md); background: var(--color-danger-bg); color: var(--red-900); font-size: var(--text-14); }
+.rb-clashes p { margin: 4px 0 8px; }
+.rb-clashes ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.rb-clashes .rb-ref { font-weight: var(--fw-semibold); }
+.rb-partner-changes { margin-top: 12px; font-size: var(--text-14); }
+.rb-partner-changes h4 { margin: 0 0 4px; }
+.rb-partner-changes ul { margin: 6px 0; padding-left: 20px; display: grid; gap: 2px; }
+.rb-error { color: var(--red-900); }
+.rb-retry { margin: -8px 0 16px; }
+
+/* ---------- Form embed + submissions ---------- */
+.fm-embed-notes { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 4px; font-size: var(--text-14); }
+.fm-subs td small { display: block; }
+.fm-sub-detail td { background: var(--grey-50, #f8f8f8); }
+.fm-sub-detail dl { display: grid; grid-template-columns: 160px 1fr; gap: 4px 12px; margin: 0; font-size: var(--text-14); }
+.fm-sub-detail dt { color: var(--color-text-secondary); }
+.fm-sub-detail dd { margin: 0; white-space: pre-wrap; word-break: break-word; }
+@media (max-width: 640px) { .fm-sub-detail dl { grid-template-columns: 1fr; } }
+
+/* ---------- Cancel a room booking ---------- */
+.rb-cancel { margin: 0 0 16px; padding: 12px 16px; border: 1px solid var(--red-900); border-radius: var(--radius-md); font-size: var(--text-14); display: grid; gap: 8px; }
+.rb-cancel .rb-section { margin: 0; }
+.rb-cancel p { margin: 0; }
+.rb-cancel label { display: grid; gap: 4px; }
+.rb-cancel label.fm-inline { display: flex; gap: 8px; align-items: center; }
+.rb-cancel textarea { width: 100%; }
+
+/* Room bookings: date range */
+.rb-daterange { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-14); color: var(--color-text-secondary); }
+.rb-daterange input { min-width: 0; }
+/* Room booking side panel: history */
+.rb-timeline { list-style: none; margin: 0 0 8px; padding: 0 0 0 12px; border-left: 2px solid var(--border-default); }
+.rb-timeline li { display: grid; gap: 2px; padding: 6px 0; font-size: var(--text-14); }
+.rb-timeline time { color: var(--color-text-secondary); font-size: 12px; }

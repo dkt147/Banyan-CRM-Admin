@@ -8,7 +8,8 @@ import { useAuth } from "../auth/AuthContext";
 import { usePermissions } from "../utils/permissions";
 import { recordHref } from "../utils/recordLinks";
 import { invalidateLookups, useLookups } from "../utils/useLookups";
-import { CONTACT_TAGS, tagLabel } from "./detail/ContactDetail";
+import { tagInfo, tagLabel } from "../utils/contactTags";
+import { TagGuide, TagOptions, useTagCounts } from "../components/ContactTags";
 
 const PAGE_SIZE = 25;
 const DEFAULT_VIEW = { search: "", status: "active", tag: "", companyId: "", mine: false };
@@ -32,9 +33,13 @@ export default function Contacts() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [bulkTag, setBulkTag] = useState("");
+  const [tagTick, setTagTick] = useState(0);
+  const tagCounts = useTagCounts(tagTick);
   const sel = useSelection(rows);
   const canWrite = usePermissions().can("records.write");
   const legacyId = searchParams.get("id");
+  // view.tag is "a,b": the API returns contacts that have all of them (max 10).
+  const filterTags = (view.tag || "").split(",").filter(Boolean);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -79,7 +84,7 @@ export default function Contacts() {
       ? request(`/contacts/${id}/archive`, { method: "PATCH" })
       : request(`/contacts/${id}`, { method: "PATCH", body: { tags: [...new Set([...(byId.get(id)?.tags || []), bulkTag])] } }));
     setNotice(`${result.ok} updated${result.failed ? `, ${result.failed} failed: ${result.firstError}` : ""}.`);
-    sel.clear(); setBulkTag(""); invalidateLookups("contacts"); load();
+    sel.clear(); setBulkTag(""); setTagTick((n) => n + 1); invalidateLookups("contacts"); load();
   }
 
   const statusChips = [["active", "Active"], ["archived", "Archived"], ["all", "All"]];
@@ -100,16 +105,28 @@ export default function Contacts() {
       </section>
       <section className="lk-filterbar">
         <FilterChips label="Status" chips={statusChips.map(([key, label]) => ({ key, label, active: view.status === key }))} onToggle={(status) => update({ status })} />
-        <FilterChips label="Tag" chips={CONTACT_TAGS.map((t) => ({ key: t, label: tagLabel(t), active: view.tag === t }))} onToggle={(t) => update({ tag: view.tag === t ? "" : t })} />
+        <label className="lk-select-filter">{filterTags.length ? "And tag" : "Tag"}
+          <select aria-label="Filter by tag" value="" onChange={(e) => e.target.value && update({ tag: [...filterTags, e.target.value].join(",") })}>
+            <option value="">{filterTags.length ? "Add another tag…" : "All tags"}</option>
+            <TagOptions extraTags={[...Object.keys(tagCounts || {}), ...rows.flatMap((c) => c.tags || [])]} counts={tagCounts} exclude={filterTags} />
+          </select>
+        </label>
+        {filterTags.map((t) => (
+          <span key={t} className={`tag-chip tag-${tagInfo(t).group}`} title="Contacts must have every selected tag">
+            {tagLabel(t)}
+            <button type="button" aria-label={`Remove ${tagLabel(t)} filter`} onClick={() => update({ tag: filterTags.filter((x) => x !== t).join(",") })}>×</button>
+          </span>
+        ))}
         <FilterChips chips={[{ key: "mine", label: "My contacts", active: view.mine }]} onToggle={() => update({ mine: !view.mine })} />
       </section>
+      <TagGuide />
       {notice && <div className="notice"><b>Contacts</b><span>{notice}</span></div>}
 
       <BulkBar count={canWrite ? sel.count : 0} onClear={sel.clear}>
         <button type="button" className="btn ghost" onClick={() => bulk("archive")}>Archive</button>
         <select aria-label="Tag to add" value={bulkTag} onChange={(e) => setBulkTag(e.target.value)}>
           <option value="">Add tag…</option>
-          {CONTACT_TAGS.map((t) => <option key={t} value={t}>{tagLabel(t)}</option>)}
+          <TagOptions extraTags={[...Object.keys(tagCounts || {}), ...rows.flatMap((c) => c.tags || [])]} />
         </select>
         <button type="button" className="btn ghost" disabled={!bulkTag} onClick={() => bulk("tag")}>Apply tag</button>
       </BulkBar>
@@ -132,7 +149,7 @@ export default function Contacts() {
                     <td><Link to={recordHref.contact(c._id)} onClick={(e) => e.stopPropagation()} className="lk-primary">{[c.firstName, c.lastName].filter(Boolean).join(" ")}</Link>{c.jobTitle && <small>{c.jobTitle}</small>}</td>
                     <td>{company ? <Link to={recordHref.company(company._id)} onClick={(e) => e.stopPropagation()}>{company.name}</Link> : "—"}</td>
                     <td><span>{c.email || "—"}</span>{c.phone && <small>{c.phone}</small>}</td>
-                    <td>{(c.tags || []).slice(0, 2).map((t) => <Badge key={t}>{tagLabel(t)}</Badge>)}{c.isArchived && <Badge tone="warn">Archived</Badge>}</td>
+                    <td title={(c.tags || []).map(tagLabel).join(", ")}>{(c.tags || []).slice(0, 2).map((t) => <span key={t} title={tagInfo(t).description}><Badge>{tagLabel(t)}</Badge></span>)}{(c.tags || []).length > 2 && <small>+{c.tags.length - 2}</small>}{c.isArchived && <Badge tone="warn">Archived</Badge>}</td>
                     <td>{c.bookingCount || 0}{c.nextBookingAt && <small>Next {fmtShort(c.nextBookingAt)}</small>}</td>
                     <td>{c.dealCount || 0}{c.openDealCount ? <small>{c.openDealCount} open</small> : null}</td>
                     <td>{c.ownerId?.name || "—"}</td>
@@ -157,7 +174,7 @@ export default function Contacts() {
             ))}
             <label>Company<select value={form.companyId} onChange={(e) => setForm({ ...form, companyId: e.target.value })}><option value="">No company</option>{companies.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}</select></label>
             <label>Language<select value={form.language} onChange={(e) => setForm({ ...form, language: e.target.value })}><option value="en">English</option><option value="zh">Chinese</option><option value="es">Spanish</option></select></label>
-            <label>Tag<select value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })}><option value="">No tag</option>{CONTACT_TAGS.map((t) => <option key={t} value={t}>{tagLabel(t)}</option>)}</select></label>
+            <label>Tag<select value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })}><option value="">No tag</option><TagOptions /></select></label>
           </div>
           <label>Notes<textarea rows={4} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
         </Modal>

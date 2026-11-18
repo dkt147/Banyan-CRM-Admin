@@ -3,7 +3,7 @@ import { Page, Empty } from "./Dashboard";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import { useAuth } from "../auth/AuthContext";
-import { listenForGoogleOAuth, openGoogleOAuth } from "../utils/googleOAuth";
+import { GOOGLE_POPUP_HINT, listenForGoogleOAuth, openGoogleOAuth } from "../utils/googleOAuth";
 const providers = [
   "gmail",
   "whatsapp",
@@ -80,7 +80,9 @@ export default function Integrations() {
     setError("");
     setNotice("");
     try {
-      await openGoogleOAuth(request);
+      const r = await openGoogleOAuth(request);
+      setConnectingGoogle(false);
+      if (r.inPopup) setNotice(GOOGLE_POPUP_HINT);
     } catch (e) {
       setConnectingGoogle(false);
       setError(e.message || "Could not start Google authorization.");

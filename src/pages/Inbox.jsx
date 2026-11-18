@@ -4,7 +4,7 @@ import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
-import { listenForGoogleOAuth, openGoogleOAuth } from "../utils/googleOAuth";
+import { GOOGLE_POPUP_HINT, listenForGoogleOAuth, openGoogleOAuth } from "../utils/googleOAuth";
 
 function itemArray(response) {
   const data = response?.data;
@@ -98,7 +98,9 @@ export default function Inbox() {
     setError("");
     setNotice("");
     try {
-      await openGoogleOAuth(request);
+      const r = await openGoogleOAuth(request);
+      setConnecting(false);
+      if (r.inPopup) setNotice(GOOGLE_POPUP_HINT);
     } catch (e) {
       setConnecting(false);
       setError(e.message || "Could not start Google authorization.");
@@ -138,8 +140,12 @@ export default function Inbox() {
           body: {
             to: selected.participantAddress,
             subject: selected.subject || "Re: (no subject)",
+            // The server fills {{variables}} from the linked contact/deal and sends HTML as multipart.
             text: body,
+            templateId: templateId || undefined,
             conversationId: selected._id,
+            contactId: selected.contactId?._id || selected.contactId || undefined,
+            companyId: selected.companyId?._id || selected.companyId || undefined,
             dealId: selected.dealId?._id || selected.dealId || undefined,
           },
         });
@@ -175,7 +181,7 @@ export default function Inbox() {
     try {
       const response = await request("/integrations/google/gmail/send", {
         method: "POST",
-        body: { to: composeTo.trim(), subject: composeSubject.trim(), text: composeBody },
+        body: { to: composeTo.trim(), subject: composeSubject.trim(), text: composeBody, templateId: composeTemplateId || undefined },
       });
       const conversationId = response.data?.conversationId || response.data?.conversation?._id;
       setComposeOpen(false);
@@ -261,6 +267,7 @@ export default function Inbox() {
                 }}><option value="">No template</option>{templates.map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}</select></label>
               </div>
               <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder={selected.channel === "email" ? "Write an email reply…" : "Write a reply…"} />
+              {selected.channel === "email" && /\{\{\s*\w+\s*\}\}/.test(body) && <p className="lk-muted">Fields like {"{{firstName}}"} are filled in from the linked contact when the email is sent.</p>}
               <div className="actions"><button className="btn primary" disabled={sending || (selected.channel === "email" && !gmailConnected)} onClick={send}>{sending ? "Sending…" : selected.channel === "email" ? "Send email" : "Send"}</button></div>
             </div>
           </>}
@@ -283,6 +290,7 @@ export default function Inbox() {
             {templates.map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}
           </select></label>
           <label className="form-span-2">Message<textarea rows="9" value={composeBody} onChange={(e) => setComposeBody(e.target.value)} placeholder="Write your email…" /></label>
+          {/\{\{\s*\w+\s*\}\}/.test(composeSubject + composeBody) && <p className="lk-muted form-span-2">Fields like {"{{firstName}}"} are filled in when the email is sent. Without a linked contact, fields the CRM can't fill are left as written, so check them before sending.</p>}
         </div>
       </Modal>}
     </Page>
