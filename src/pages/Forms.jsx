@@ -282,6 +282,9 @@ function EmbedModal({ form, canManage, onClose, onRotated }) {
     return [
       `<form action="${endpoint}" method="POST">`,
       `  <input type="hidden" name="publicKey" value="${esc(form.publicKey || "<form public key>")}">`,
+      `  <!-- Brings the visitor back to this page after sending -->`,
+      `  <input type="hidden" name="_return_url" value="">`,
+      `  <script>document.currentScript.previousElementSibling.value = location.href;</script>`,
       `  <!-- Spam trap: keep this hidden and empty -->`,
       `  ${HONEYPOT}`,
       inputs,
@@ -320,7 +323,7 @@ function EmbedModal({ form, canManage, onClose, onRotated }) {
       </ol>
       <h4>On other websites: after someone presses Send</h4>
       <ul className="fm-embed-notes">
-        <li>The visitor comes back to the same page with <code>?submitted=1</code> in the address. Show a thank-you message when it's there.</li>
+        <li>The visitor comes back to the same page with <code>?submitted=1</code> in the address. Show a thank-you message when it's there. The hidden <code>_return_url</code> field and its one-line script make this work; without them the visitor may land on the site's home page.</li>
         <li>If something was missing or wrong, they come back with <code>?form_error=…</code> holding the message. Show it near the form.</li>
         <li>The hidden <code>website</code> field catches spam bots. Keep it in the code and don't make it visible.</li>
         <li>Every submission, including failed and spam ones, is listed under <b>Submissions</b>.</li>

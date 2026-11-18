@@ -162,8 +162,9 @@ function TemplateEditor({ initial, isNew, onClose, onSaved }) {
       const r = await request(isNew ? "/templates" : `/templates/${initial._id}`, { method: isNew ? "POST" : "PATCH", body });
       onSaved(r.data?._id || initial._id);
     } catch (e) {
-      const tooLarge = e.status === 413 || /longer than the maximum allowed length/i.test(e.message || "");
-      setError(e.status === 409 ? "A template with this name already exists." : tooLarge ? TOO_LARGE : e.message);
+      // 413 TEMPLATE_TOO_LARGE carries its own message (body or subject); older servers sent a raw Mongo maxlength error.
+      const legacyTooLarge = /longer than the maximum allowed length/i.test(e.message || "");
+      setError(e.status === 409 ? "A template with this name already exists." : e.status === 413 ? (e.message || TOO_LARGE) : legacyTooLarge ? TOO_LARGE : e.message);
       setSaving(false);
     }
   }
