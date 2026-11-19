@@ -261,7 +261,7 @@ export default function Calendar() {
     setConnectingGoogle(false);
     if (result.success) { setError(""); setNotice(result.message || "Google Calendar connected."); loadGoogleStatus(); }
     else setError(result.message || "Google authorization was not completed.");
-  }), []);
+  }, () => loadGoogleStatus()), []);
 
   async function connectGoogle() {
     setConnectingGoogle(true); setError("");

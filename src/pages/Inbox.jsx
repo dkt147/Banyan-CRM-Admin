@@ -91,7 +91,7 @@ export default function Inbox() {
     } else {
       setError(result.message || "Google connection was not completed.");
     }
-  }), [load]);
+  }, () => load()), [load]);
 
   async function connectGoogle() {
     setConnecting(true);

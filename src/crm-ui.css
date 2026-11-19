@@ -486,3 +486,10 @@
 .rb-timeline { list-style: none; margin: 0 0 8px; padding: 0 0 0 12px; border-left: 2px solid var(--border-default); }
 .rb-timeline li { display: grid; gap: 2px; padding: 6px 0; font-size: var(--text-14); }
 .rb-timeline time { color: var(--color-text-secondary); font-size: 12px; }
+/* Google sign-in popup return page */
+.oauth-return { min-height: 100vh; display: grid; place-items: center; padding: 16px; background: var(--surface-muted); }
+.oauth-return-card { max-width: 420px; width: 100%; background: var(--surface-card); border: 1px solid var(--border-default); border-radius: 12px; padding: 24px; text-align: center; }
+.oauth-return-card h1 { font-size: 20px; margin: 0 0 8px; }
+.oauth-return-card p { color: var(--color-text-secondary); margin: 0 0 12px; }
+.oauth-return-code { font-family: monospace; font-size: 12px; }
+.oauth-return-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }

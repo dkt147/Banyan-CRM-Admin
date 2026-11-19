@@ -3,7 +3,7 @@ import { Page, Empty } from "./Dashboard";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import { useAuth } from "../auth/AuthContext";
-import { GOOGLE_POPUP_HINT, listenForGoogleOAuth, openGoogleOAuth } from "../utils/googleOAuth";
+import { GOOGLE_POPUP_HINT, clearGoogleOAuthParams, listenForGoogleOAuth, openGoogleOAuth, readGoogleOAuthReturn } from "../utils/googleOAuth";
 const providers = [
   "gmail",
   "whatsapp",
@@ -38,31 +38,13 @@ export default function Integrations() {
   }
   useEffect(() => {
     load();
-    const params = new URLSearchParams(window.location.search);
-    const oauthResult = params.get("google_oauth");
-    if (oauthResult) {
-      const success = oauthResult === "success";
-      const message = success
-        ? "Google Workspace and Calendar connected successfully."
-        : "Google authorization was cancelled or failed.";
-      if (window.opener && window.opener !== window) {
-        window.opener.postMessage(
-          { type: "banyan-google-oauth-result", success, message },
-          window.location.origin,
-        );
-        window.close();
-      } else if (success) {
-        setNotice(message);
-      } else {
-        setError(message);
-      }
-      params.delete("google_oauth");
-      const query = params.toString();
-      window.history.replaceState(
-        {},
-        document.title,
-        `${window.location.pathname}${query ? `?${query}` : ""}`,
-      );
+    // Only reached when the whole tab went to Google (popup blocked); the popup case is
+    // handled in main.jsx before the CRM renders.
+    const result = readGoogleOAuthReturn();
+    if (result) {
+      if (result.success) setNotice(result.message);
+      else setError(result.message);
+      clearGoogleOAuthParams();
     }
   }, []);
   useEffect(() => listenForGoogleOAuth((result) => {
@@ -74,7 +56,7 @@ export default function Integrations() {
     } else {
       setError(result.message || "Google authorization was not completed.");
     }
-  }), []);
+  }, () => load()), []);
   async function connectGoogle() {
     setConnectingGoogle(true);
     setError("");
