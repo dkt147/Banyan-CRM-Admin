@@ -150,6 +150,11 @@ export default function Calendar() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  // Company meeting room credits for the current Hong Kong month (GET /credits).
+  const [credits, setCredits] = useState(null);
+  useEffect(() => {
+    request("/credits").then((r) => setCredits(r.data?.items || [])).catch(() => setCredits([]));
+  }, [request]);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [connectingGoogle, setConnectingGoogle] = useState(false);
   const [contacts, setContacts] = useState([]);
@@ -602,13 +607,19 @@ export default function Calendar() {
 
     <section className="av-bottom">
       <div className="av-card">
-        <h3>Meeting room credits</h3>
-        {data.credits.length === 0 && <p className="av-muted">No credit allowances set up yet.</p>}
-        {data.credits.map((account) => <div key={account.id} className="av-credit">
-          <div className="av-credit-row"><span>{account.name}</span><em>{fmtHours(account.usedHours)} / {account.limitHours} hrs</em></div>
-          <div className="av-bar"><i className={account.approachingLimit ? "warn" : ""} style={{ width: `${Math.min(100, account.ratio * 100)}%` }} /></div>
-          {account.approachingLimit && <small className="av-warn">Approaching the limit — offer a top-up</small>}
-        </div>)}
+        <h3>Meeting room credits <small className="av-muted">this month</small></h3>
+        {credits === null && <p className="av-muted">Loading…</p>}
+        {credits?.length === 0 && <p className="av-muted">No company has a monthly allowance yet. Set one on the company's page.</p>}
+        {(credits || []).map((row) => {
+          const total = (row.allowance || 0) + (row.adjustments || 0);
+          const ratio = total > 0 ? (row.used || 0) / total : 0;
+          const warn = total > 0 && ratio >= 0.8;
+          return <div key={row.company?.id || row.company?._id} className="av-credit">
+            <div className="av-credit-row"><Link to={recordHref.company(row.company?.id || row.company?._id)}>{row.company?.name}</Link><em>{fmtHours(row.used)} / {fmtHours(total)} hrs</em></div>
+            <div className="av-bar"><i className={warn ? "warn" : ""} style={{ width: `${Math.min(100, ratio * 100)}%` }} /></div>
+            {warn && <small className="av-warn">{row.remaining > 0 ? `${fmtHours(row.remaining)} hrs left. Offer a top-up?` : "No credits left this month."}</small>}
+          </div>;
+        })}
       </div>
 
       <div className="av-card">

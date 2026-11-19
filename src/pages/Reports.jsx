@@ -4,6 +4,7 @@ import { Page } from "./Dashboard";
 import { DataState } from "../components/ListKit";
 import { useAuth } from "../auth/AuthContext";
 import { formatMoney } from "./detail/DealDetail";
+import Breakdown from "./reports/Breakdown";
 
 // Monthly and yearly reports from GET /reports/periodic (all records, Hong Kong months).
 // The server returns every month in from..to (zeros where empty) plus a one-sentence
@@ -97,6 +98,9 @@ export default function Reports() {
         ))}
       </div>
 
+      <Breakdown />
+
+      <h3 className="rp-section-title">Monthly and yearly totals</h3>
       <section className="panel lk-table-wrap">
         <DataState loading={state.loading} error={state.error} onRetry={load} empty={false}>
           <table className="lk-table rp-table rp-periodic">

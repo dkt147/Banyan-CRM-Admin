@@ -3,6 +3,7 @@ import { Page, Empty } from "./Dashboard";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import { useAuth } from "../auth/AuthContext";
+import FlodeskStatus from "../components/FlodeskStatus";
 import { GOOGLE_POPUP_HINT, clearGoogleOAuthParams, listenForGoogleOAuth, openGoogleOAuth, readGoogleOAuthReturn } from "../utils/googleOAuth";
 const providers = [
   "gmail",
@@ -129,6 +130,7 @@ export default function Integrations() {
     >
       {error && <div className="notice error">{error}</div>}
       {notice && <div className="notice"><b>Google</b><span>{notice}</span></div>}
+      <FlodeskStatus />
       <section className="panel table-wrap">
         <table>
           <thead>

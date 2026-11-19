@@ -10,6 +10,7 @@ const PERMISSIONS = {
   "records.write": ["admin", "sales"],
   "bookings.write": ["admin", "sales"],
   "bookings.refund": ["admin"],
+  "credits.adjust": ["admin"],
   "resources.manage": ["admin"],
   "workflows.view": ["admin", "sales"],
   "workflows.manage": ["admin"],

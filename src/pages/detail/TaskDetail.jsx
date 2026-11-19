@@ -7,6 +7,7 @@ import { usePermissions } from "../../utils/permissions";
 import { recordHref } from "../../utils/recordLinks";
 import { personLabel, useLookups } from "../../utils/useLookups";
 import { fromHkInput } from "../../utils/hkTime";
+import NextTaskPrompt from "../../components/NextTaskPrompt";
 
 export const TASK_STATUSES = [["pending", "Pending"], ["in_progress", "In progress"], ["completed", "Completed"], ["snoozed", "Snoozed"], ["cancelled", "Cancelled"]];
 export const TASK_PRIORITIES = [["low", "Low"], ["medium", "Medium"], ["high", "High"], ["urgent", "Urgent"]];
@@ -31,6 +32,7 @@ export default function TaskDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
+  const [askNext, setAskNext] = useState(false);   // after "Complete": offer the next task
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -45,13 +47,16 @@ export default function TaskDetail() {
     if ("dueAt" in body) body.dueAt = fromHkInput(body.dueAt).toISOString();
     for (const key of ["contactId", "dealId"]) if (key in body && !body[key]) body[key] = null;
     if ("description" in body && !body.description.trim()) body.description = null;
-    setTask((await request(`/tasks/${id}`, { method: "PATCH", body })).data);
+    const next = (await request(`/tasks/${id}`, { method: "PATCH", body })).data;
+    setTask(next);
+    if (body.status === "completed" && task?.status !== "completed") setAskNext(true);
   }
   async function act(type) {
     setActionError("");
     try {
       const body = type === "snooze" ? { snoozedUntil: new Date(Date.now() + 86400000).toISOString() } : {};
       setTask((await request(`/tasks/${id}/${type}`, { method: "PATCH", body })).data);
+      if (type === "complete") setAskNext(true);
     } catch (e) { setActionError(e.message); }
   }
   async function remove() {
@@ -77,6 +82,7 @@ export default function TaskDetail() {
       </>}
     >
       {actionError && <div className="notice error"><b>Tasks</b><span>{actionError}</span></div>}
+      {task && askNext && canWrite && <NextTaskPrompt task={task} links={links} onDone={() => setAskNext(false)} />}
       {task && <>
         <Card title="Linked records">
           <dl className="dl-fields">

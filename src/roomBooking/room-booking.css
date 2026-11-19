@@ -217,3 +217,9 @@ html.bnrb-lock, html.bnrb-lock body { overflow: hidden; }
 .bnrb-overlay .bnrb-daylist button { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; width: 100%; padding: 10px 4px; font-size: 14px; }
 .bnrb-overlay .bnrb-daylist button:hover { background: var(--bnrb-soft); }
 .bnrb-daylist small { margin-left: auto; color: var(--bnrb-mut); font-size: 12px; }
+/* Payment choice: card or company meeting room credits */
+.bnrb-pay-with { border: 1px solid var(--bnrb-line); border-radius: 8px; padding: 10px 14px; margin: 12px 0; display: grid; gap: 8px; }
+.bnrb-pay-with legend { font-weight: 600; padding: 0 4px; }
+.bnrb-pay-with label { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: start; cursor: pointer; }
+.bnrb-pay-with label small { grid-column: 2; color: var(--bnrb-mut); }
+.bnrb-pay-with label.is-disabled { cursor: default; color: var(--bnrb-mut); }

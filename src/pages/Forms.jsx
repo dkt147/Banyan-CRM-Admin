@@ -11,6 +11,7 @@ import { usePermissions } from "../utils/permissions";
 import { useLookups } from "../utils/useLookups";
 import { tagLabel } from "../utils/contactTags";
 import { API_BASE_URL } from "../api";
+import { BANYAN_DESIGN, BrandedPreview, DesignFields, withDesign } from "../forms/formDesign";
 
 // Intake forms (GET/POST/PATCH/DELETE /forms). A form is a list of fields, each mapped to a
 // CRM contact field, plus what happens on submit: tags, an optional deal, a follow-up task
@@ -19,7 +20,11 @@ import { API_BASE_URL } from "../api";
 
 const TYPES = [["enquiry", "Website enquiry"], ["contact", "Contact details"], ["walk_in", "Walk-in"], ["newsletter", "Newsletter sign-up"]];
 const FIELD_TYPES = [["text", "Short text"], ["email", "Email"], ["tel", "Phone"], ["textarea", "Long text"], ["checkboxes", "Checkboxes"], ["select", "Dropdown"]];
-const MAP_TO = [["", "Not saved to a contact field (kept with the submission)"], ["firstName", "First name"], ["lastName", "Last name"], ["email", "Email"], ["phone", "Phone"], ["company", "Company name"], ["interests", "Interested in (services)"], ["notes", "Notes"]];
+const MAP_TO = [["", "Not saved to a contact field (kept with the submission)"], ["firstName", "First name"], ["lastName", "Last name"], ["email", "Email"], ["phone", "Phone"], ["company", "Company name"], ["interests", "Interested in (services)"], ["source", "Lead source (how they found us)"], ["newsletterOptIn", "Newsletter opt-in (Yes adds them to Flodesk)"], ["notes", "Notes"]];
+// Flodesk segments the team uses (Audience → Segments). The backend maps each interest to its segment.
+export const NEWSLETTER_INTERESTS = ["Coworking", "Serviced Office", "Virtual Office", "Event Space / Venue Hire", "Podcast Services"];
+const LEAD_SOURCES = ["Website", "Search Engine", "Paid Search", "Email", "Newsletter", "Phone Call", "WhatsApp", "Referral", "Social Media", "Organic Social", "Paid Social", "Partner", "Broker", "Walk-in", "Event", "Networking", "GOP Workshop", "Other"];
+const NO_FLODESK = { enabled: false };
 const SERVICES = ["Virtual Office", "Flexible Day Pass", "Coworking Desks", "Serviced Offices", "Meeting Rooms", "Event Venue", "Photoshoot Space", "Podcast Studio"];
 
 const field = (label, type, mapTo, required = false, options = []) => ({ key: mapTo || slugify(label).replace(/-/g, "_"), label, type, mapTo, required, options });
@@ -43,8 +48,49 @@ export const WEBSITE_ENQUIRY_PRESET = {
   notifyEmails: [],
   allowedOrigins: ["https://banyanworkspace.com", "https://www.banyanworkspace.com"],
   isActive: true,
+  design: { ...BANYAN_DESIGN, title: "Get in touch", intro: "Tell us what you're looking for and our team will get back to you.", buttonText: "Send enquiry" },
+  flodesk: NO_FLODESK,
 };
-const BLANK = { ...WEBSITE_ENQUIRY_PRESET, name: "", slug: "", description: "", fields: [field("First name", "text", "firstName", true), field("Email address", "email", "email", true)], tagsToApply: [], createTask: false, allowedOrigins: [] };
+const BLANK = { ...WEBSITE_ENQUIRY_PRESET, name: "", slug: "", description: "", fields: [field("First name", "text", "firstName", true), field("Email address", "email", "email", true)], tagsToApply: [], createTask: false, allowedOrigins: [], design: { ...BANYAN_DESIGN }, flodesk: NO_FLODESK };
+// The walk-in form staff hand visitors on the iPad (copy of the HubSpot form in use today).
+const WALK_IN_PRESET = {
+  ...BLANK, name: "Walk-in visitor", slug: "walk-in", type: "walk_in",
+  description: "Visitors fill this in on the iPad at reception.",
+  fields: [
+    field("First name", "text", "firstName", true),
+    field("Last name", "text", "lastName", true),
+    field("Email", "email", "email", true),
+    field("Phone number", "tel", "phone"),
+    field("Products / services", "checkboxes", "interests", false, ["Flexible Day Pass", "Coworking Desks", "Podcast Studio", "Meeting Rooms", "Virtual Office", "Serviced Offices"]),
+    field("How did you hear about us?", "select", "source", false, LEAD_SOURCES),
+    field("I'd like to sign up to the newsletter", "select", "newsletterOptIn", false, ["Yes", "No"]),
+  ],
+  consentText: "",
+  tagsToApply: ["walk_in"],
+  design: { ...BANYAN_DESIGN, title: "Welcome to Banyan Workspace", intro: "Thank you for joining us today. We hope your visit is productive. Kindly share your details with us for our records, and so we can stay in touch with you!" },
+  flodesk: { enabled: true },
+};
+// Newsletter sign-up (website, Instagram link): contact in the CRM + subscriber in Flodesk.
+const NEWSLETTER_PRESET = {
+  ...BLANK, name: "Newsletter sign-up", slug: "newsletter", type: "newsletter",
+  description: "Joins the Banyan newsletter (CRM contact + Flodesk subscriber).",
+  fields: [
+    field("First name", "text", "firstName", true),
+    field("Email", "email", "email", true),
+    field("What are you interested in?", "select", "interests", false, NEWSLETTER_INTERESTS),
+  ],
+  consentText: "Yes, I'd like to receive emails from Banyan Workspace. I can unsubscribe at any time.",
+  tagsToApply: ["newsletter"],
+  allowedOrigins: ["https://banyanworkspace.com", "https://www.banyanworkspace.com"],
+  design: { ...BANYAN_DESIGN, title: "Join the Banyan community", intro: "News, events and member offers from Banyan Workspace, straight to your inbox.", buttonText: "Sign up" },
+  flodesk: { enabled: true },
+};
+const TEMPLATES = [
+  ["blank", "Blank form", "Start from a name and an email field.", BLANK],
+  ["enquiry", "Website enquiry", "Copy of the enquiry form on banyanworkspace.com.", WEBSITE_ENQUIRY_PRESET],
+  ["walk_in", "Walk-in visitor", "For the iPad at reception: details, interests, how they found us.", WALK_IN_PRESET],
+  ["newsletter", "Newsletter sign-up", "Name, email, interest and consent. Adds them to Flodesk.", NEWSLETTER_PRESET],
+];
 
 function slugify(s) { return String(s || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80); }
 const lines = (s) => String(s || "").split(/[\n,]/).map((x) => x.trim()).filter(Boolean);
@@ -60,6 +106,7 @@ export default function Forms() {
   const [editing, setEditing] = useState(null);   // { id?, values }
   const [embed, setEmbed] = useState(null);
   const [subs, setSubs] = useState(null);
+  const [choosing, setChoosing] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -70,7 +117,7 @@ export default function Forms() {
   useEffect(() => { load(); }, [load]);
 
   const open = (values, id) => setEditing({ id, values: JSON.parse(JSON.stringify(values)) });
-  const fromRow = (f) => ({ ...BLANK, ...f, pipelineId: idOf(f.pipelineId), stageId: idOf(f.stageId), fields: f.fields || [] });
+  const fromRow = (f) => ({ ...BLANK, ...f, pipelineId: idOf(f.pipelineId), stageId: idOf(f.stageId), fields: f.fields || [], design: withDesign(f.design), flodesk: { ...NO_FLODESK, ...(f.flodesk || {}) } });
 
   async function remove(f) {
     if (!window.confirm(`Delete the form "${f.name}"? Websites using it will stop sending submissions.`)) return;
@@ -85,34 +132,34 @@ export default function Forms() {
   return (
     <Page title="Forms" kicker="Website, walk-in and newsletter intake"
       actions={canManage && <>
-        <button type="button" className="btn ghost" onClick={() => open(BLANK)}>Blank form</button>
-        <button type="button" className="btn primary" onClick={() => open(WEBSITE_ENQUIRY_PRESET)}>Copy website enquiry form</button>
+        <button type="button" className="btn primary" onClick={() => setChoosing(true)}>New form</button>
       </>}>
       <section className="panel fm-howto">
         <h3>How forms work</h3>
         <ol>
           <li><b>Create the form.</b> Start from a copy of the website enquiry form, or a blank form. Add the fields you need and choose which contact field each one fills.</li>
           <li><b>Decide what happens on submit.</b> Tags to add, an optional deal in a pipeline stage, a follow-up task, and who gets an email.</li>
-          <li><b>Put it on the website.</b> Use "Embed" to get the code. Submissions create or update the contact (matched by email, then phone) and appear on their timeline.</li>
+          <li><b>Style it.</b> Title, introduction, button and colours. It starts in the Banyan style; the preview shows how it will look.</li>
+          <li><b>Put it online.</b> Under "Share", create its own page on banyanworkspace.com (a link for the iPad, an event or Instagram), or copy the code. Submissions create or update the contact (matched by email, then phone) and appear on their timeline.</li>
         </ol>
       </section>
       {notice && <div className="notice"><b>Forms</b><span>{notice}</span></div>}
       <section className="panel lk-table-wrap">
         <DataState loading={loading} error={error} onRetry={load} empty={rows.length === 0}
-          emptyText="No forms yet. Use “Copy website enquiry form” to start from the form on banyanworkspace.com.">
+          emptyText="No forms yet. Click “New form” to start from a template.">
           <table className="lk-table">
             <thead><tr><th>Form</th><th>Type</th><th>Fields</th><th>Tags applied</th><th>Status</th><th aria-label="Actions" /></tr></thead>
             <tbody>
               {rows.map((f) => (
                 <tr key={f._id}>
-                  <td><b>{f.name}</b><small><code>{f.slug}</code>{f.description ? ` · ${f.description}` : ""}</small></td>
+                  <td><b>{f.name}</b><small><code>{f.slug}</code>{f.description ? ` · ${f.description}` : ""}</small>{f.page?.url && <small><a href={f.page.url} target="_blank" rel="noreferrer">{f.page.url.replace(/^https?:\/\//, "")}</a></small>}</td>
                   <td>{(TYPES.find(([v]) => v === f.type) || [])[1] || f.type}</td>
                   <td>{(f.fields || []).length}</td>
                   <td>{(f.tagsToApply || []).map(tagLabel).join(", ") || "—"}</td>
                   <td><Badge tone={f.isActive ? "good" : ""}>{f.isActive ? "Active" : "Inactive"}</Badge></td>
                   <td className="fm-actions">
                     <button type="button" className="btn ghost small" onClick={() => setSubs(f)}>Submissions</button>
-                    <button type="button" className="btn ghost small" onClick={() => setEmbed(f)}>Embed</button>
+                    <button type="button" className="btn ghost small" onClick={() => setEmbed(f)}>Share</button>
                     {canManage && <>
                       <button type="button" className="btn ghost small" onClick={() => open(fromRow(f), f._id)}>Edit</button>
                       <button type="button" className="btn ghost small" onClick={() => open({ ...fromRow(f), name: `${f.name} copy`, slug: `${f.slug}-copy` })}>Duplicate</button>
@@ -128,6 +175,17 @@ export default function Forms() {
       {editing && <FormEditor editing={editing} onClose={() => setEditing(null)} onSaved={(msg) => { setEditing(null); setNotice(msg); load(); }} />}
       {embed && <EmbedModal form={embed} canManage={canManage} onClose={() => setEmbed(null)} onRotated={(f) => { setEmbed(f); load(); }} />}
       {subs && <SubmissionsModal form={subs} onClose={() => setSubs(null)} />}
+      {choosing && (
+        <Modal className="fm-choose" title="New form" onClose={() => setChoosing(false)}>
+          <div className="fm-templates">
+            {TEMPLATES.map(([key, label, help, preset]) => (
+              <button key={key} type="button" className="fm-template" onClick={() => { setChoosing(false); open(preset); }}>
+                <b>{label}</b><span>{help}</span>
+              </button>
+            ))}
+          </div>
+        </Modal>
+      )}
     </Page>
   );
 }
@@ -168,6 +226,8 @@ function FormEditor({ editing, onClose, onSaved }) {
       consentText: v.consentText || "", tagsToApply: v.tagsToApply || [],
       pipelineId: v.pipelineId || null, stageId: v.pipelineId ? v.stageId || null : null,
       createTask: Boolean(v.createTask), notifyEmails: v.notifyEmails || [], allowedOrigins: v.allowedOrigins || [], isActive: Boolean(v.isActive),
+      design: withDesign(v.design),
+      flodesk: { enabled: Boolean(v.flodesk?.enabled) },
     };
     try {
       await request(editing.id ? `/forms/${editing.id}` : "/forms", { method: editing.id ? "PATCH" : "POST", body });
@@ -221,6 +281,9 @@ function FormEditor({ editing, onClose, onSaved }) {
           </ol>
           <button type="button" className="btn ghost" onClick={() => set({ fields: [...v.fields, field(`Field ${v.fields.length + 1}`, "text", "")] })}>Add field</button>
 
+          <h4>Design</h4>
+          <DesignFields design={v.design} onChange={(design) => set({ design })} />
+
           <h4>When someone submits</h4>
           <div className="form-grid">
             <label className="form-span-2">Tags to add
@@ -235,32 +298,19 @@ function FormEditor({ editing, onClose, onSaved }) {
             <label>Email these people<textarea rows={2} placeholder="one email per line" value={(v.notifyEmails || []).join("\n")} onChange={(e) => set({ notifyEmails: lines(e.target.value) })} /></label>
             <label>Websites allowed to send it<textarea rows={2} placeholder="https://banyanworkspace.com" value={(v.allowedOrigins || []).join("\n")} onChange={(e) => set({ allowedOrigins: lines(e.target.value) })} /></label>
             <label className="form-span-2">Consent text (shown above the submit button)<textarea rows={2} value={v.consentText || ""} onChange={(e) => set({ consentText: e.target.value })} /></label>
+            <label className="fm-inline form-span-2"><input type="checkbox" checked={Boolean(v.flodesk?.enabled)} onChange={(e) => set({ flodesk: { ...(v.flodesk || {}), enabled: e.target.checked } })} /> Add to the Flodesk newsletter</label>
+            {v.flodesk?.enabled && <p className="lk-muted form-span-2">
+              The person is added to Flodesk in the segment for their interest ({NEWSLETTER_INTERESTS.join(", ")}; anything else goes to "No Product").
+              {v.fields.some((f) => f.mapTo === "newsletterOptIn") ? " Only when they answer Yes to the newsletter question." : v.consentText ? " Only when they tick the consent box." : " Add consent text or a newsletter opt-in question so people agree to emails."}
+            </p>}
           </div>
         </div>
         <aside className="fm-right" aria-label="Preview">
           <h4>Preview</h4>
-          <FormPreview form={v} />
+          <BrandedPreview form={v} />
         </aside>
       </div>
     </Modal>
-  );
-}
-
-function FormPreview({ form }) {
-  return (
-    <form className="fm-preview" onSubmit={(e) => e.preventDefault()}>
-      {form.fields.map((f, i) => (
-        <div key={i} className={`fm-p-field fm-p-${f.type}`}>
-          <span className="fm-p-label">{f.label}{f.required && " *"}</span>
-          {f.type === "textarea" ? <textarea rows={3} disabled />
-            : f.type === "checkboxes" ? <span className="fm-p-options">{(f.options || []).map((o) => <label key={o}><input type="checkbox" disabled /> {o}</label>)}</span>
-              : f.type === "select" ? <select disabled><option>Choose…</option>{(f.options || []).map((o) => <option key={o}>{o}</option>)}</select>
-                : <input type={f.type} disabled />}
-        </div>
-      ))}
-      {form.consentText && <label className="fm-p-consent"><input type="checkbox" disabled /> {form.consentText}</label>}
-      <button type="button" className="btn primary" disabled>Submit</button>
-    </form>
   );
 }
 
@@ -289,13 +339,34 @@ function EmbedModal({ form, canManage, onClose, onRotated }) {
       `  ${HONEYPOT}`,
       inputs,
       form.consentText ? `  <label><input type="checkbox" name="consent" value="yes" required> ${esc(form.consentText)}</label>` : null,
-      `  <button type="submit">Send</button>`,
+      `  <button type="submit">${esc(withDesign(form.design).buttonText || "Send")}</button>`,
       `</form>`,
     ].filter((x) => x !== null).join("\n");
   }, [form, endpoint]);
   const [copied, setCopied] = useState(false);
   const [rotating, setRotating] = useState(false);
   const [error, setError] = useState("");
+
+  // Its own page on banyanworkspace.com: the CRM asks WordPress to create (or update) a page
+  // that shows this form in the Banyan design. POST/DELETE /forms/:id/page.
+  const [pagePath, setPagePath] = useState(form.page?.path || `forms/${form.slug}`);
+  const [pageBusy, setPageBusy] = useState("");
+  const [linkCopied, setLinkCopied] = useState(false);
+  async function publishPage() {
+    setPageBusy("publish"); setError("");
+    try {
+      const r = await request(`/forms/${form._id}/page`, { method: "POST", body: { path: pagePath.replace(/^\/+|\/+$/g, "") } });
+      onRotated?.({ ...form, page: r.data?.page || r.data });
+    } catch (e) { setError([404, 405].includes(e.status) && !e.payload?.code ? "Creating website pages needs the backend and WordPress update. It's in the handoff." : e.message); }
+    finally { setPageBusy(""); }
+  }
+  async function removePage() {
+    if (!window.confirm("Take this page off banyanworkspace.com? Anyone with the link will no longer see the form.")) return;
+    setPageBusy("remove"); setError("");
+    try { await request(`/forms/${form._id}/page`, { method: "DELETE" }); onRotated?.({ ...form, page: null }); }
+    catch (e) { setError(e.message); }
+    finally { setPageBusy(""); }
+  }
 
   async function rotate() {
     if (!window.confirm("Regenerate this form's key?\n\nEvery website that already has this form embedded stops working until its code is replaced with the new snippet.")) return;
@@ -306,22 +377,45 @@ function EmbedModal({ form, canManage, onClose, onRotated }) {
   }
 
   return (
-    <Modal className="fm-modal" title={`Embed · ${form.name}`} onClose={onClose} actions={<>
+    <Modal className="fm-modal" title={`Share · ${form.name}`} onClose={onClose} actions={<>
       {canManage && <button type="button" className="btn ghost" onClick={rotate} disabled={rotating}>{rotating ? "Regenerating…" : "Regenerate key"}</button>}
-      <button type="button" className="btn ghost" onClick={async () => { try { await navigator.clipboard.writeText(snippet); setCopied(true); } catch { /* ignore */ } }}>{copied ? "Copied" : "Copy code"}</button>
       <button type="button" className="btn primary" onClick={onClose}>Done</button>
     </>}>
-      {error && <div className="notice error"><b>Form key</b><span>{error}</span></div>}
+      {error && <div className="notice error"><b>Form</b><span>{error}</span></div>}
       {!form.isActive && <div className="notice"><b>Inactive</b><span>This form is switched off, so submissions are refused until it's made active again.</span></div>}
-      <p>Paste this into the website page (or send it to the web developer). Submissions go to <code>{endpoint}</code> and are only accepted from the websites listed on the form (banyanworkspace.com when the list is empty).</p>
-      <pre className="fm-snippet">{snippet}</pre>
-      <h4>Putting it on banyanworkspace.com</h4>
-      <ol className="fm-embed-notes">
-        <li>In WordPress, go to <b>Room Bookings → CRM Forms</b> and add a form.</li>
-        <li>Enter the slug <code>{form.slug}</code> and the public key <code>{form.publicKey || "(shown after saving)"}</code>, paste the code above, and add a thank-you message if you like.</li>
-        <li>Put the shortcode <code>[banyan_crm_form slug="{form.slug}"]</code> on any page. If you click <b>Regenerate key</b>, update the key there too.</li>
-      </ol>
-      <h4>On other websites: after someone presses Send</h4>
+
+      <h4>Its own page on banyanworkspace.com</h4>
+      <p className="lk-muted">For the iPad at reception, an event sign-up or the Instagram link: a page with the website's header and footer and this form in the Banyan design.</p>
+      {form.page?.url ? (
+        <div className="fm-page-live">
+          <a href={form.page.url} target="_blank" rel="noreferrer" className="fm-page-url">{form.page.url}</a>
+          <div className="fm-page-actions">
+            <button type="button" className="btn ghost" onClick={async () => { try { await navigator.clipboard.writeText(form.page.url); setLinkCopied(true); } catch { /* ignore */ } }}>{linkCopied ? "Link copied" : "Copy link"}</button>
+            <a className="btn ghost" href={form.page.url} target="_blank" rel="noreferrer">Open page</a>
+            {canManage && <button type="button" className="btn ghost" onClick={publishPage} disabled={Boolean(pageBusy)}>{pageBusy === "publish" ? "Updating…" : "Update page"}</button>}
+            {canManage && <button type="button" className="btn ghost" onClick={removePage} disabled={Boolean(pageBusy)}>{pageBusy === "remove" ? "Removing…" : "Remove page"}</button>}
+          </div>
+          {form.page.error && <p className="lk-warn-text">{form.page.error}</p>}
+          <p className="lk-muted">"Update page" applies changes to the title, introduction or design. Field changes show on the page straight away.</p>
+        </div>
+      ) : canManage ? (
+        <div className="fm-page-new">
+          <label>Page address
+            <span className="fm-page-path"><span>banyanworkspace.com/</span><input value={pagePath} onChange={(e) => setPagePath(e.target.value.toLowerCase().replace(/[^a-z0-9/-]+/g, "-"))} /></span>
+          </label>
+          <button type="button" className="btn primary" onClick={publishPage} disabled={Boolean(pageBusy) || !form.isActive}>{pageBusy === "publish" ? "Creating page…" : "Create page"}</button>
+        </div>
+      ) : <p className="lk-muted">No page yet. An admin can create one.</p>}
+
+      <h4>On an existing banyanworkspace.com page</h4>
+      <p>Put the shortcode <code>[banyan_crm_form slug="{form.slug}"]</code> on the page in WordPress. It shows this form in the same design.</p>
+
+      <details className="fm-embed-details">
+        <summary>Embed code for other websites</summary>
+        <p>Paste this into the page (or send it to the web developer). Submissions go to <code>{endpoint}</code> and are only accepted from the websites listed on the form (banyanworkspace.com when the list is empty).</p>
+        <button type="button" className="btn ghost" onClick={async () => { try { await navigator.clipboard.writeText(snippet); setCopied(true); } catch { /* ignore */ } }}>{copied ? "Copied" : "Copy code"}</button>
+        <pre className="fm-snippet">{snippet}</pre>
+      <h4>After someone presses Send</h4>
       <ul className="fm-embed-notes">
         <li>The visitor comes back to the same page with <code>?submitted=1</code> in the address. Show a thank-you message when it's there. The hidden <code>_return_url</code> field and its one-line script make this work; without them the visitor may land on the site's home page.</li>
         <li>If something was missing or wrong, they come back with <code>?form_error=…</code> holding the message. Show it near the form.</li>
@@ -329,13 +423,16 @@ function EmbedModal({ form, canManage, onClose, onRotated }) {
         <li>Every submission, including failed and spam ones, is listed under <b>Submissions</b>.</li>
         {canManage && <li><b>Regenerate key</b> only if the key has leaked: existing embeds stop working until they get the new code.</li>}
       </ul>
-      <p className="lk-muted">On banyanworkspace.com the existing enquiry form already posts to the CRM, so you only need this for new forms.</p>
+      </details>
+      <p className="lk-muted">The existing enquiry pop-up on banyanworkspace.com already posts to the CRM and stays as it is.</p>
     </Modal>
   );
 }
 
 const SUB_STATUSES = [["", "All"], ["processed", "Processed"], ["failed", "Failed"], ["spam", "Spam"]];
 const SUB_TONE = { processed: "good", failed: "warn" };
+const FLODESK_TONE = { added: "good", failed: "warn" };
+const FLODESK_LABEL = { pending: "Sending…", added: "Added", skipped: "Not added", failed: "Failed" };
 const fmtWhen = (d) => (d ? new Date(d).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong" }) : "—");
 const showValue = (v) => (Array.isArray(v) ? v.join(", ") : v && typeof v === "object" ? JSON.stringify(v) : String(v ?? ""));
 
@@ -361,7 +458,7 @@ function SubmissionsModal({ form, onClose }) {
       <FilterChips label="Status" chips={SUB_STATUSES.map(([key, label]) => ({ key, label, active: status === key }))} onToggle={(k) => { setStatus(k); setPage(1); }} />
       <DataState loading={state.loading} error={state.error} onRetry={load} empty={state.items.length === 0} emptyText="No submissions yet.">
         <table className="lk-table fm-subs">
-          <thead><tr><th>Received (HK)</th><th>Contact</th><th>Status</th><th>Deal</th><th aria-label="Details" /></tr></thead>
+          <thead><tr><th>Received (HK)</th><th>Contact</th><th>Status</th><th>Deal</th>{form.flodesk?.enabled && <th>Flodesk</th>}<th aria-label="Details" /></tr></thead>
           <tbody>
             {state.items.map((sub) => {
               const c = sub.contactId && typeof sub.contactId === "object" ? sub.contactId : null;
@@ -377,10 +474,15 @@ function SubmissionsModal({ form, onClose }) {
                     <td>{c ? <Link to={recordHref.contact(c._id)}>{who}</Link> : who}{c?.email && <small>{c.email}</small>}</td>
                     <td><Badge tone={SUB_TONE[sub.status] || ""}>{sub.status}</Badge>{sub.error && <small className="lk-warn-text">{sub.error}</small>}</td>
                     <td>{d ? <Link to={recordHref.deal(d._id)}>{d.title}</Link> : "—"}</td>
+                    {form.flodesk?.enabled && <td>{sub.flodesk ? <>
+                      <Badge tone={FLODESK_TONE[sub.flodesk.status] || ""}>{FLODESK_LABEL[sub.flodesk.status] || sub.flodesk.status}</Badge>
+                      {(sub.flodesk.segments || []).length > 0 && <small>{sub.flodesk.segments.join(", ")}</small>}
+                      {sub.flodesk.reason && <small className={sub.flodesk.status === "failed" ? "lk-warn-text" : "lk-muted"}>{sub.flodesk.reason}</small>}
+                    </> : "—"}</td>}
                     <td><button type="button" className="btn ghost small" onClick={() => setOpenId(open ? null : sub._id)}>{open ? "Hide" : "View"}</button></td>
                   </tr>
                   {open && (
-                    <tr className="fm-sub-detail"><td colSpan={5}>
+                    <tr className="fm-sub-detail"><td colSpan={form.flodesk?.enabled ? 6 : 5}>
                       <dl>
                         {Object.entries(p).filter(([k]) => !["publicKey", "website"].includes(k)).map(([k, v]) => <React.Fragment key={k}><dt>{labelOf(k)}</dt><dd>{showValue(v) || "—"}</dd></React.Fragment>)}
                         {sub.sourceUrl && <><dt>Sent from</dt><dd>{sub.sourceUrl}</dd></>}

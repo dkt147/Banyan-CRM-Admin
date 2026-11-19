@@ -211,7 +211,7 @@ export default function Members() {
       const member = response?.data;
 
       if (!member) {
-        throw new Error("Member details were not found.");
+        throw new Error("User details were not found.");
       }
 
       setSelectedMember(member);
@@ -311,7 +311,7 @@ export default function Members() {
 
   async function updateMember() {
     if (!selectedMember?._id) {
-      setError("Member ID is missing.");
+      setError("User ID is missing.");
       return;
     }
 
@@ -404,8 +404,8 @@ export default function Members() {
 
   return (
     <Page
-      title="Members"
-      kicker="Workspace team access"
+      title="Users"
+      kicker="Staff who can sign in to the CRM"
       actions={
         canManageMembers && (
           <button
@@ -413,7 +413,7 @@ export default function Members() {
             onClick={openCreateModal}
             disabled={loading}
           >
-            Add member
+            Add user
           </button>
         )
       }
@@ -421,7 +421,7 @@ export default function Members() {
       {/* Global error */}
       {error && (
         <div className="notice error">
-          <b>Members</b>
+          <b>Users</b>
           <span>{error}</span>
 
           <button
@@ -438,7 +438,7 @@ export default function Members() {
         <table>
           <thead>
             <tr>
-              <th>Member</th>
+              <th>User</th>
               <th>Role</th>
               <th>Job title</th>
               <th>Last login</th>
@@ -526,7 +526,7 @@ export default function Members() {
         </table>
 
         {!loading && rows.length === 0 && (
-          <Empty text="No active members found." />
+          <Empty text="No active users found." />
         )}
       </section>
 
@@ -536,7 +536,7 @@ export default function Members() {
 
       {modal && (
         <Modal
-          title={mode === "create" ? "Add member" : "Edit member"}
+          title={mode === "create" ? "Add user" : "Edit user"}
           onClose={closeModal}
           actions={
             <>
@@ -560,7 +560,7 @@ export default function Members() {
                     ? "Creating..."
                     : "Saving..."
                   : mode === "create"
-                    ? "Create member"
+                    ? "Create user"
                     : "Save changes"}
               </button>
             </>
@@ -701,7 +701,7 @@ export default function Members() {
 
       {detailsModal && selectedMember && (
         <Modal
-          title="Member details"
+          title="User details"
           onClose={() => {
             if (!detailsLoading) {
               setDetailsModal(false);

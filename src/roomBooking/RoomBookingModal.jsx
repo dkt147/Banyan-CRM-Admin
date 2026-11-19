@@ -112,6 +112,23 @@ function BookingDialog({ config: C, initial, onClose, onBooked }) {
   const [syncState, setSyncState] = useState("");    // "" | syncing | ok | failed
   const [copied, setCopied] = useState(false);
   const [tick, setTick] = useState(Date.now());
+  // Meeting room credits: when the picked contact's company has credits for the booking's month,
+  // staff can book without payment (POST /room-bookings/credit-booking).
+  const [picked, setPicked] = useState(null);        // CRM contact chosen in the picker
+  const [credit, setCredit] = useState(null);        // null | { loading } | { data } | { error }
+  const [payWith, setPayWith] = useState("card");    // card | credits
+  const pickedCompanyId = picked && (typeof picked.companyId === "object" ? picked.companyId?._id : picked.companyId);
+  const creditMonth = date ? date.slice(0, 7) : "";
+  useEffect(() => {
+    setPayWith("card");
+    if (!pickedCompanyId || !creditMonth) { setCredit(null); return undefined; }
+    let active = true;
+    setCredit({ loading: true });
+    request(`/companies/${pickedCompanyId}/credits`, { query: { month: creditMonth } })
+      .then((res) => active && setCredit({ data: res.data }))
+      .catch((e) => active && setCredit({ error: e.message }));
+    return () => { active = false; };
+  }, [pickedCompanyId, creditMonth, request]);
   const cache = useRef({});
 
   const r = C.rooms.find((x) => x.key === room) || null;
@@ -199,6 +216,21 @@ function BookingDialog({ config: C, initial, onClose, onBooked }) {
     setInvalid(bad); setFormError(msg);
     if (msg) return;
     setSubmitting(true);
+    if (payWith === "credits") {
+      try {
+        const res = await request("/room-bookings/credit-booking", {
+          method: "POST",
+          body: { room, date, start: sel.start, hours, contactId: picked._id, notes: d.notes.trim().slice(0, notesRoom) },
+        });
+        setResult({ kind: "credits", data: res.data || {}, note: `${roomLabel(r)}, ${longDate(date)}, ${hl(sel.start)}–${hl(sel.end)}` });
+        onBooked?.(res.data?.booking);
+      } catch (e) {
+        if (e.status === 409 && e.payload?.code !== "INSUFFICIENT_CREDITS") {
+          cache.current = {}; setSel(null); setError(e.message); setStep(1); setReload((n) => n + 1);
+        } else setFormError(e.status === 501 ? "Booking with credits needs the website update (WordPress plugin). Use card payment for now." : e.message);
+      } finally { setSubmitting(false); }
+      return;
+    }
     try {
       // The CRM server calls WordPress /checkout with its API token (no per-browser rate limit)
       // and adds "Booked via CRM by <staff>" to the notes itself.
@@ -318,22 +350,41 @@ function BookingDialog({ config: C, initial, onClose, onBooked }) {
     return (
       <Shell title="Your details" step={2} onClose={requestClose} footer={<>
         <button type="button" className="bnrb-btn bnrb-btn-ghost bnrb-back" onClick={() => setStep(1)}>Back</button>
-        <div className="bnrb-summary"><span>Total</span><span className="bnrb-total">{money(r.price * hours)}</span></div>
+        <div className="bnrb-summary"><span>Total</span><span className="bnrb-total">{payWith === "credits" ? `${hours} credit${hours === 1 ? "" : "s"}` : money(r.price * hours)}</span></div>
         <button type="button" className="bnrb-btn bnrb-pay" onClick={submit} disabled={submitting}>
-          {submitting ? <><i className="bnrb-spin" aria-hidden="true" /> Redirecting to secure payment…</> : "Continue to payment"}
+          {submitting ? <><i className="bnrb-spin" aria-hidden="true" /> {payWith === "credits" ? "Booking…" : "Redirecting to secure payment…"}</> : payWith === "credits" ? "Book with credits" : "Continue to payment"}
         </button>
       </>}>
         <div className="bnrb-recap">
           <div><strong>{r.name} · {r.capacity}</strong><span>{longDate(date)}, {hl(sel.start)}–{hl(sel.end)} ({hoursText(hours)})</span></div>
           <button type="button" className="bnrb-link bnrb-edit" onClick={() => setStep(1)}>Change</button>
         </div>
-        <ContactPicker onPick={(c) => setDetails((d) => ({
+        <ContactPicker onPick={(c) => { setPicked(c); setDetails((d) => ({
           ...d,
           first_name: c.firstName || (c.fullName || "").split(" ")[0] || d.first_name,
           last_name: c.lastName || (c.fullName || "").split(" ").slice(1).join(" ") || d.last_name,
           email: c.email || d.email,
           phone: c.phone || c.mobile || d.phone,
-        }))} />
+        })); }} />
+        {picked && credit && (() => {
+          const cd = credit.data;
+          const companyName = cd?.company?.name || (typeof picked.companyId === "object" ? picked.companyId?.name : "") || "their company";
+          const enough = cd && cd.remaining >= hours;
+          return (
+            <fieldset className="bnrb-pay-with">
+              <legend>Payment</legend>
+              <label><input type="radio" name="bnrb-pay" checked={payWith === "card"} onChange={() => setPayWith("card")} /> Card, through Stripe ({money(r.price * hours)})</label>
+              <label className={enough ? "" : "is-disabled"}>
+                <input type="radio" name="bnrb-pay" disabled={!enough} checked={payWith === "credits"} onChange={() => setPayWith("credits")} />
+                {" "}Meeting room credits from {companyName}
+                <small>{credit.loading ? "Checking credits…" : credit.error ? credit.error
+                  : cd.allowance + (cd.adjustments || 0) <= 0 ? "This company has no monthly allowance."
+                    : `${cd.remaining} of ${cd.allowance + (cd.adjustments || 0)} hours left in ${creditMonth}${enough ? ` · uses ${hours}` : ` · needs ${hours}`}`}</small>
+              </label>
+              {payWith === "credits" && <p className="bnrb-muted">Booked for {personLabel(picked)}, with no payment. The confirmation goes to their email on the CRM contact.</p>}
+            </fieldset>
+          );
+        })()}
         <form className="bnrb-form" noValidate onSubmit={(e) => { e.preventDefault(); submit(); }}>
           <Field name="first_name" label="First name" type="text" details={details} onChange={setField} invalid={invalid} autoFocus />
           <Field name="last_name" label="Last name" type="text" details={details} onChange={setField} invalid={invalid} />
@@ -481,7 +532,7 @@ function ContactPicker({ onPick }) {
 
 function ResultView({ result, checkout, syncState, onClose, onAgain }) {
   const { kind, data: b } = result;
-  const title = kind === "success" ? "Booking confirmed" : kind === "released" ? "Booking not completed" : "Your booking";
+  const title = kind === "success" || kind === "credits" ? "Booking confirmed" : kind === "released" ? "Booking not completed" : "Your booking";
   const footer = kind === "released"
     ? <button type="button" className="bnrb-btn bnrb-again" onClick={onAgain}>Choose another time</button>
     : <button type="button" className="bnrb-btn bnrb-done" onClick={onClose}>Done</button>;
@@ -504,6 +555,17 @@ function ResultView({ result, checkout, syncState, onClose, onAgain }) {
             {syncState === "ok" && "The CRM bookings list and calendar are up to date."}
             {syncState === "failed" && "Saved in WordPress. The CRM list will catch up within 10 minutes."}
           </p>
+        </div>
+      )}
+      {kind === "credits" && (
+        <div className="bnrb-result">
+          <div className="bnrb-check" aria-hidden="true">&#10003;</div>
+          <h3>Booked with meeting room credits</h3>
+          <p>{result.note}. No payment was taken; a confirmation has been sent to the customer.</p>
+          <dl className="bnrb-dl">
+            {b?.booking?.ref && <><dt>Reference</dt><dd>{b.booking.ref}</dd></>}
+            {b?.credits && <><dt>Credits left</dt><dd>{b.credits.remaining} h in {b.credits.month}</dd></>}
+          </dl>
         </div>
       )}
       {kind === "released" && (

@@ -28,6 +28,8 @@ export default function DealDetail() {
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
   const [move, setMove] = useState({ pipelineId: "", stageId: "", stages: [], saving: false });
+  const [dealStages, setDealStages] = useState([]);   // stages of the deal's current pipeline (stage bar)
+  const [stepping, setStepping] = useState("");       // stage id being moved to from the bar
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -44,6 +46,24 @@ export default function DealDetail() {
       .then((r) => setMove((m) => ({ ...m, stages: r.data?.items || r.data || [] })))
       .catch(() => setMove((m) => ({ ...m, stages: [] })));
   }, [pipelineId, request]);
+
+  const dealPipelineId = deal?.pipelineId?._id || "";
+  useEffect(() => {
+    if (!dealPipelineId) return;
+    request(`/pipelines/${dealPipelineId}/stages`, { query: { isActive: true, sort: "sortOrder", order: "asc" } })
+      .then((r) => setDealStages(r.data?.items || r.data || []))
+      .catch(() => setDealStages([]));
+  }, [dealPipelineId, request]);
+
+  // Stage bar: click a stage (or "Next") to move the deal there. The backend still enforces
+  // the Won/Lost rules (payment confirmed / lost reason) and its message is shown.
+  async function goToStage(stage) {
+    if (!stage || stage._id === deal?.stageId?._id) return;
+    setStepping(stage._id); setActionError("");
+    try { await patch({ pipelineId: dealPipelineId, stageId: stage._id }); }
+    catch (e) { setActionError(e.message); }
+    finally { setStepping(""); }
+  }
 
   async function patch(body) {
     const response = await request(`/deals/${id}`, { method: "PATCH", body });
@@ -93,6 +113,35 @@ export default function DealDetail() {
       </>}
     >
       {actionError && <div className="notice error"><b>Deals</b><span>{actionError}</span></div>}
+      {deal && dealStages.length > 0 && (() => {
+        const current = dealStages.findIndex((s) => s._id === deal.stageId?._id);
+        const next = dealStages.slice(current + 1).find((s) => !s.isClosedLost);
+        return (
+          <section className="dl-stagebar" aria-label="Pipeline stage">
+            <ol>
+              {dealStages.map((s, i) => {
+                const state = i === current ? "current" : current >= 0 && i < current ? "done" : "todo";
+                const tone = s.isClosedWon ? " won" : s.isClosedLost ? " lost" : "";
+                return (
+                  <li key={s._id} className={`dl-stage ${state}${tone}`}>
+                    <button type="button" disabled={!canWrite || Boolean(stepping) || i === current}
+                      aria-current={i === current ? "step" : undefined}
+                      title={i === current ? "Current stage" : `Move to ${s.name}`}
+                      onClick={() => goToStage(s)}>
+                      {stepping === s._id ? "Moving…" : s.name}
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+            {canWrite && next && deal.status === "open" && (
+              <button type="button" className="btn primary dl-stage-next" disabled={Boolean(stepping)} onClick={() => goToStage(next)}>
+                Next: {next.name} →
+              </button>
+            )}
+          </section>
+        );
+      })()}
       {deal && <>
         <Card title="People">
           <dl className="dl-fields">
@@ -125,7 +174,7 @@ export default function DealDetail() {
             { key: "description", label: "Description", type: "textarea", value: deal.description, span: true },
           ]}
         />
-        {canWrite && <Card title="Pipeline and stage">
+        {canWrite && <Card title="Move to another pipeline or stage">
           <div className="dl-inline-form">
             <label>Pipeline
               <select value={pipelineId} onChange={(e) => setMove({ ...move, pipelineId: e.target.value, stageId: "" })}>

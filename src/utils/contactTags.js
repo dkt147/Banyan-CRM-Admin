@@ -32,6 +32,8 @@ export const TAG_GROUPS = [
       ["whatsapp_lead", "WhatsApp lead", "First contact was a WhatsApp message."],
       ["form_submission", "Form submission", "Sent one of the CRM forms embedded on a website."],
       ["test_booking", "Test booking", "Made a booking paid in Stripe test mode (not real revenue)."],
+      ["newsletter", "Newsletter", "Signed up for the newsletter (also added to Flodesk)."],
+      ["walk_in", "Walk-in", "Filled in the walk-in form at reception."],
     ],
   },
 ];

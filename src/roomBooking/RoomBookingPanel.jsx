@@ -78,6 +78,7 @@ export default function RoomBookingPanel({ bookingRef, onClose, onChanged }) {
   const roomShort = row?.roomKey === "library" || /library/i.test(row?.roomName || "") ? "Library" : "room";
   const payment = row?.payment;
   const link = stripeUrl(payment);
+  const byCredits = payment?.method === "credits";
   const contactId = row?.contact?.id;
 
   return (
@@ -136,7 +137,7 @@ export default function RoomBookingPanel({ bookingRef, onClose, onChanged }) {
             {!blocked && payment && <>
               <h3 className="rb-section">Payment</h3>
               <dl>
-                <dt>Amount</dt><dd>{payment.amountLabel || "—"} {payment.currency}{payment.isTest && <> <TestBadge /></>}</dd>
+                <dt>Amount</dt><dd>{byCredits ? `Meeting room credits (${row.hours} h)` : <>{payment.amountLabel || "—"} {payment.currency}</>}{payment.isTest && <> <TestBadge /></>}</dd>
                 <dt>Status</dt><dd>{payment.status || "—"}</dd>
                 <dt>Paid at</dt><dd>{fmt(payment.paidAt)}</dd>
                 {payment.refund && <><dt>Refund</dt><dd>
@@ -169,10 +170,11 @@ export default function RoomBookingPanel({ bookingRef, onClose, onChanged }) {
                 <label>Reason (optional)
                   <textarea rows={2} maxLength={500} value={cancel.reason} disabled={cancel.busy} onChange={(e) => setCancel({ ...cancel, reason: e.target.value })} placeholder="e.g. Customer moved to next week" />
                 </label>
-                {canRefund && row.status === "paid" && (
+                {canRefund && row.status === "paid" && !byCredits && (
                   <label className="fm-inline"><input type="checkbox" checked={cancel.refund} disabled={cancel.busy} onChange={(e) => setCancel({ ...cancel, refund: e.target.checked })} /> Refund in full ({payment?.amountLabel || "the amount paid"}) through Stripe{payment?.isTest ? " (test mode)" : ""}</label>
                 )}
-                {!canRefund && row.status === "paid" && <p className="rb-muted">Only an admin can refund. Cancelling here doesn't refund the payment.</p>}
+                {byCredits && <p className="rb-muted">Paid with meeting room credits: the {row.hours} h go back to the company's credits for that month.</p>}
+                {!canRefund && row.status === "paid" && !byCredits && <p className="rb-muted">Only an admin can refund. Cancelling here doesn't refund the payment.</p>}
                 {cancel.error && <div className="notice error"><b>Not cancelled</b><span>{cancel.error}</span></div>}
               </div>
             )}

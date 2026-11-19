@@ -29,7 +29,7 @@ const MORE_NAV = [
   { key: "templates", label: "Templates", icon: "EnvelopeOpen", match: ["templates"] },
   { key: "agreements", label: "Agreements", icon: "Signature", match: ["agreements"] },
   { key: "invoices", label: "Invoices", icon: "Receipt", match: ["invoices"] },
-  { key: "members", label: "Members", icon: "UsersThree", match: ["members"] },
+  { key: "members", label: "Users", icon: "UsersThree", match: ["members"] },
 ];
 const SIDEBAR_COLLAPSED_KEY = "banyan_sidebar_collapsed";
 

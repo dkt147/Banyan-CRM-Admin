@@ -6,6 +6,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { usePermissions } from "../../utils/permissions";
 import { recordHref } from "../../utils/recordLinks";
 import { invalidateLookups } from "../../utils/useLookups";
+import { CreditsCard, LoyaltyCard } from "../../components/CompanyCredits";
 
 const ADDRESS_KEYS = ["street", "city", "country", "postalCode"];
 const OPTIONAL = ["legalName", "industry", "website", "email", "phone", "notes"];
@@ -106,6 +107,8 @@ export default function CompanyDetail() {
                 </ul>
               )}
         </Card>
+        <CreditsCard companyId={id} allowance={company.meetingRoomCreditHours} onAllowanceSaved={(co) => co && setCompany(co)} />
+        <LoyaltyCard companyId={id} />
         <Card title="Record">
           <dl className="dl-fields">
             <div className="dl-field"><dt>Created</dt><dd>{fmtDate(company.createdAt)}</dd></div>

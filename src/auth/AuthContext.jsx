@@ -4,12 +4,22 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { apiRequest, API_BASE_URL } from "../api";
 
 const ACCESS_TOKEN_KEY = "banyan_access_token";
 const USER_KEY = "banyan_user";
+// The CRM (vercel.app) and API (onrender.com) are different sites, so Safari/iPad blocks the
+// httpOnly refresh cookie and users were signed out when the 15-minute access token expired.
+// When the backend also returns refreshToken in the body, keep it here and send it on refresh.
+const REFRESH_TOKEN_KEY = "banyan_refresh_token";
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { if (v) localStorage.setItem(k, v); } catch { /* ignore */ } },
+  remove(k) { try { localStorage.removeItem(k); } catch { /* ignore */ } },
+};
 const AuthContext = createContext(null);
 
 function readStoredUser() {
@@ -28,7 +38,8 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(readStoredUser);
   const [isLoading, setIsLoading] = useState(true);
 
-  const persistSession = useCallback((token, nextUser) => {
+  const persistSession = useCallback((token, nextUser, refreshToken) => {
+    if (refreshToken) store.set(REFRESH_TOKEN_KEY, refreshToken);
     localStorage.setItem(ACCESS_TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
     setAccessToken(token);
@@ -45,21 +56,29 @@ export function AuthProvider({ children }) {
   const clearSession = useCallback(() => {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    store.remove(REFRESH_TOKEN_KEY);
     setAccessToken(null);
     setUser(null);
   }, []);
 
-  const refreshSession = useCallback(async () => {
-    const payload = await apiRequest("/auth/refresh", {
-      method: "POST",
-      body: {},
-    });
-    const token = payload?.data?.accessToken;
-    const nextUser = payload?.data?.user;
-    if (!token || !nextUser)
-      throw new Error("Refresh response did not contain a valid session.");
-    persistSession(token, nextUser);
-    return token;
+  // One refresh at a time: refresh tokens rotate, so parallel 401s must share one request.
+  const refreshing = useRef(null);
+  const refreshSession = useCallback(() => {
+    if (refreshing.current) return refreshing.current;
+    refreshing.current = (async () => {
+      const stored = store.get(REFRESH_TOKEN_KEY);
+      const payload = await apiRequest("/auth/refresh", {
+        method: "POST",
+        body: stored ? { refreshToken: stored } : {},
+      });
+      const token = payload?.data?.accessToken;
+      const nextUser = payload?.data?.user;
+      if (!token || !nextUser)
+        throw new Error("Refresh response did not contain a valid session.");
+      persistSession(token, nextUser, payload?.data?.refreshToken);
+      return token;
+    })().finally(() => { refreshing.current = null; });
+    return refreshing.current;
   }, [persistSession]);
 
   const request = useCallback(
@@ -140,7 +159,7 @@ export function AuthProvider({ children }) {
       const nextUser = payload?.data?.user;
       if (!token || !nextUser)
         throw new Error("Login response did not contain a valid session.");
-      persistSession(token, nextUser);
+      persistSession(token, nextUser, payload?.data?.refreshToken);
       return nextUser;
     },
     [persistSession],
@@ -148,7 +167,8 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(async () => {
     try {
-      await apiRequest("/auth/logout", { method: "POST", body: {} });
+      const stored = store.get(REFRESH_TOKEN_KEY);
+      await apiRequest("/auth/logout", { method: "POST", body: stored ? { refreshToken: stored } : {} });
     } catch {}
     clearSession();
   }, [clearSession]);

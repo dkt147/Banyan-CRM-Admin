@@ -9,6 +9,7 @@ import Metric from "../components/Metric";
 import Modal from "../components/Modal";
 
 import { useAuth } from "../auth/AuthContext";
+import CompanyTiers from "./loyalty/CompanyTiers";
 
 export default function Loyalty() {
 
@@ -173,8 +174,8 @@ export default function Loyalty() {
 
   return (
     <Page
-      title="Loyalty rewards"
-      kicker="1 point per HK$100 paid"
+      title="Loyalty"
+      kicker="Company tiers by spend · points: 1 per HK$100 paid"
       actions={
         <>
           <button
@@ -206,6 +207,9 @@ export default function Loyalty() {
         </div>
       )}
 
+      <CompanyTiers />
+
+      <h3 className="rp-section-title">Points (per contact)</h3>
       <div className="metrics five">
         <Metric
           label="Enrolled clients"
