@@ -240,7 +240,7 @@ export default function Loyalty() {
       </div>
 
       <section>
-        <SectionTitle title="The tiers" note="Configured from MongoDB" />
+        <SectionTitle title="The tiers" />
 
         <div className="tier-grid">
           {tiers.map((t) => (

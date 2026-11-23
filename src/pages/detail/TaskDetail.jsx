@@ -41,6 +41,8 @@ export default function TaskDetail() {
     finally { setLoading(false); }
   }, [id, request]);
   useEffect(() => { load(); }, [load]);
+  // "Open it" on the prompt navigates to the new task: don't carry the prompt over.
+  useEffect(() => { setAskNext(false); }, [id]);
 
   async function save(changed) {
     const body = { ...changed };
@@ -82,7 +84,7 @@ export default function TaskDetail() {
       </>}
     >
       {actionError && <div className="notice error"><b>Tasks</b><span>{actionError}</span></div>}
-      {task && askNext && canWrite && <NextTaskPrompt task={task} links={links} onDone={() => setAskNext(false)} />}
+      {task && askNext && canWrite && <NextTaskPrompt key={id} task={task} links={links} onDone={() => setAskNext(false)} />}
       {task && <>
         <Card title="Linked records">
           <dl className="dl-fields">

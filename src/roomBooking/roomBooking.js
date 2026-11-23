@@ -99,7 +99,26 @@ export const roomByName = (config, name) => config?.rooms.find((r) => roomLabel(
 
 /* ---------- display helpers for cached rows ---------- */
 export const WP_STATUS_LABELS = { paid: "Paid", pending: "Awaiting payment", blocked: "Blocked", cancelled: "Cancelled", expired: "Expired", error: "Error" };
+export const isCreditBooking = (b) => b?.payment?.method === "credits";
+
+/** Amount as the backend labels it ("HK$250", "Meeting room credits (1 h)"). Never "HK$0" for credits. */
+export function amountText(b) {
+  if (isCreditBooking(b)) {
+    const label = b.payment?.amountLabel;
+    return label && /credit/i.test(label) ? label : `Meeting room credits (${b.hours} h)`;
+  }
+  return b?.payment?.amountLabel || "—";
+}
+
+/** Where the booking came from, e.g. "Website checkout · booked via CRM". */
+export function channelText(b) {
+  if (b?.channelLabel) return b.channelLabel;
+  const base = isCreditBooking(b) ? "Meeting room credits" : b?.channel === "admin" ? "WP Admin" : "Website checkout";
+  return b?.viaCrm ? `${base} · booked via CRM` : base;
+}
+
 export const stripeUrl = (payment) => {
+  if (payment?.method === "credits") return null;
   if (!payment?.stripePaymentIntent) return payment?.stripeUrl || null;
   return payment.stripeUrl || `https://dashboard.stripe.com/${payment.mode === "test" ? "test/" : ""}payments/${payment.stripePaymentIntent}`;
 };

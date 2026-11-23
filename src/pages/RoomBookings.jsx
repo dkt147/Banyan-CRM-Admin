@@ -11,7 +11,7 @@ import RoomBookingPanel, { RoomStatusBadge, TestBadge } from "../roomBooking/Roo
 import RoomAvailability from "../roomBooking/RoomAvailability";
 import RoomCalendarSettings from "../roomBooking/RoomCalendarSettings";
 import PartnerBlocksPanel from "../roomBooking/PartnerBlocksPanel";
-import { FALLBACK_CONFIG, customerName, isPartnerBlock, partnerTitle, stripeUrl, timeAgo, useRoomBookingConfig } from "../roomBooking/roomBooking";
+import { FALLBACK_CONFIG, amountText, channelText, customerName, isCreditBooking, isPartnerBlock, partnerTitle, stripeUrl, timeAgo, useRoomBookingConfig } from "../roomBooking/roomBooking";
 
 /** "Synced 1 min ago" from GET /room-bookings/config lastSync, or the last sync error. */
 export function SyncStatus({ config }) {
@@ -156,9 +156,9 @@ export default function RoomBookings() {
                       </small>}
                       {notes && <small className="rb-truncate" title={notes}>{notes}</small>}
                     </td>
-                    <td className="rb-nowrap">{blocked ? "—" : <>{b.payment?.amountLabel || "—"}{b.payment?.isTest && <> <TestBadge /></>}</>}</td>
+                    <td className="rb-nowrap">{blocked ? "—" : <>{amountText(b)}{b.payment?.isTest && !isCreditBooking(b) && <> <TestBadge /></>}</>}</td>
                     <td><RoomStatusBadge status={b.status} label={b.statusLabel} /></td>
-                    <td className="rb-nowrap">{partner ? "Partner calendar" : b.channel || "—"}{b.viaCrm && <span className="rb-source">CRM</span>}</td>
+                    <td className="rb-nowrap">{partner ? "Partner calendar" : blocked ? "—" : channelText(b)}</td>
                     <td className="rb-nowrap">{link && <a href={link} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>View in Stripe</a>}</td>
                   </tr>
                 );

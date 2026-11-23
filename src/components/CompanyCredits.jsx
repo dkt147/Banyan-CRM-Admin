@@ -15,6 +15,14 @@ const hkMonth = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Hong_Ko
 const monthLabel = (m) => { const [y, mo] = String(m).split("-").map(Number); return new Date(Date.UTC(y, mo - 1, 1)).toLocaleString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" }); };
 const hours = (h) => `${Number(h || 0).toLocaleString("en-HK", { maximumFractionDigits: 1 })} h`;
 const TYPE_LABEL = { use: "Booked", refund: "Returned", adjust: "Adjusted" };
+const shiftMonth = (m, by) => { const [y, mo] = String(m).split("-").map(Number); const d = new Date(Date.UTC(y, mo - 1 + by, 1)); return d.toISOString().slice(0, 7); };
+// use: always taken; refund: always given back; adjust: the stored sign (-1 for an undo).
+function entryHours(x) {
+  const n = Math.abs(Number(x.hours) || 0);
+  if (x.type === "use") return `−${hours(n)}`;
+  if (x.type === "refund") return `+${hours(n)} returned`;
+  return `${Number(x.hours) < 0 ? "−" : "+"}${hours(n)}`;
+}
 
 export function CreditsCard({ companyId, allowance: initialAllowance, onAllowanceSaved }) {
   const { request } = useAuth();
@@ -65,8 +73,13 @@ export function CreditsCard({ companyId, allowance: initialAllowance, onAllowanc
   return (
     <Card title="Meeting room credits">
       <div className="cc-head">
-        <label className="cc-month">Month<input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} /></label>
-        <p className="lk-muted">1 credit = 1 hour. Anyone at the company can use them. Unused credits don't carry over.</p>
+        <div className="cc-month">
+          <button type="button" className="btn ghost small" aria-label="Previous month" onClick={() => setMonth((m) => shiftMonth(m, -1))}>‹</button>
+          <label>Month<input type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} /></label>
+          <button type="button" className="btn ghost small" aria-label="Next month" onClick={() => setMonth((m) => shiftMonth(m, 1))}>›</button>
+          {month !== hkMonth() && <button type="button" className="av-link" onClick={() => setMonth(hkMonth())}>This month</button>}
+        </div>
+        <p className="lk-muted">1 credit = 1 hour. Anyone at the company can use them. Credits count in the month of the booking, not when it was made. Unused credits don't carry over.</p>
       </div>
       {state.error && <p className="lk-warn-text">{state.error}</p>}
 
@@ -101,7 +114,7 @@ export function CreditsCard({ companyId, allowance: initialAllowance, onAllowanc
                 <tr key={x.id || `${x.at}-${x.bookingRef}`}>
                   <td>{new Date(x.at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td>
                   <td>{TYPE_LABEL[x.type] || x.type}{x.bookingRef ? ` · ${x.bookingRef}` : ""}{x.room ? ` · ${x.room}` : ""}{x.note ? <small className="dl-sub">{x.note}</small> : null}</td>
-                  <td>{x.type === "use" ? "−" : "+"}{hours(Math.abs(x.hours))}</td>
+                  <td className="rb-nowrap">{entryHours(x)}</td>
                   <td>{x.by || "—"}</td>
                 </tr>
               ))}

@@ -504,7 +504,10 @@
 .dl-stage.current.won button { background: var(--color-success); border-color: var(--color-success); }
 .dl-stage.current.lost button { background: var(--color-danger); border-color: var(--color-danger); }
 .dl-stage-next { white-space: nowrap; }
-@media (max-width: 640px) { .dl-stage-next { width: 100%; } }
+.dl-stage-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.dl-close-form { flex: 1 1 100%; display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-card); }
+.dl-close-form label:not(.fm-inline) { display: grid; gap: 4px; max-width: 480px; }
+@media (max-width: 640px) { .dl-stage-next, .dl-stage-actions { width: 100%; } }
 /* Task completed: next task prompt */
 .next-task { border-color: var(--color-primary); margin-bottom: 16px; }
 .next-task-form { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: end; }
@@ -530,6 +533,8 @@
 .bf-form input:not([type=checkbox]), .bf-form select, .bf-form textarea { width: 100%; border: 1px solid color-mix(in srgb, var(--bf-text) 25%, transparent); background: transparent; color: var(--bf-text); padding: 10px 12px; border-radius: 2px; font: inherit; }
 .bf-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; font-size: 14px; }
 .bf-consent { font-size: 13px; display: flex; gap: 8px; align-items: flex-start; }
+.bf-options label, .bf-consent { display: flex !important; flex-direction: row !important; align-items: flex-start; gap: 8px; font-weight: 400; }
+.bf-options input[type=checkbox], .bf-consent input[type=checkbox] { width: auto; margin: 3px 0 0; flex: none; }
 .bf-button { justify-self: center; background: var(--bf-button); color: var(--bf-button-text); border: 0; padding: 12px 32px; font: 500 14px var(--bf-body); letter-spacing: .06em; text-transform: uppercase; border-radius: 2px; cursor: pointer; }
 .bf-button:hover { background: var(--bf-button-hover); }
 @media (max-width: 640px) { .bf-card.bf-with-image { grid-template-columns: 1fr; } .bf-title { font-size: 28px; } }
@@ -565,7 +570,8 @@
 /* Company: meeting room credits and loyalty */
 .cc-head { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-end; }
 .cc-head p { margin: 0; flex: 1 1 240px; }
-.cc-month { display: grid; gap: 4px; font-size: var(--text-14); }
+.cc-month { display: flex; gap: 6px; align-items: flex-end; flex-wrap: wrap; font-size: var(--text-14); }
+.cc-month label { display: grid; gap: 4px; }
 .cc-allowance { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 12px 0 8px; }
 .cc-allowance b { display: inline-flex; gap: 8px; align-items: baseline; }
 .cc-edit { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }

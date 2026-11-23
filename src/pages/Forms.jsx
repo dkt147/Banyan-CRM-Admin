@@ -23,7 +23,7 @@ const FIELD_TYPES = [["text", "Short text"], ["email", "Email"], ["tel", "Phone"
 const MAP_TO = [["", "Not saved to a contact field (kept with the submission)"], ["firstName", "First name"], ["lastName", "Last name"], ["email", "Email"], ["phone", "Phone"], ["company", "Company name"], ["interests", "Interested in (services)"], ["source", "Lead source (how they found us)"], ["newsletterOptIn", "Newsletter opt-in (Yes adds them to Flodesk)"], ["notes", "Notes"]];
 // Flodesk segments the team uses (Audience → Segments). The backend maps each interest to its segment.
 export const NEWSLETTER_INTERESTS = ["Coworking", "Serviced Office", "Virtual Office", "Event Space / Venue Hire", "Podcast Services"];
-const LEAD_SOURCES = ["Website", "Search Engine", "Paid Search", "Email", "Newsletter", "Phone Call", "WhatsApp", "Referral", "Social Media", "Organic Social", "Paid Social", "Partner", "Broker", "Walk-in", "Event", "Networking", "GOP Workshop", "Other"];
+const LEAD_SOURCES = ["Website", "Search Engine", "Paid Search", "Email", "Newsletter", "Phone Call", "WhatsApp", "Referral", "Instagram", "Facebook", "LinkedIn", "Social Media", "Organic Social", "Paid Social", "Partner", "Broker", "Walk-in", "Event", "Networking", "GOP Workshop", "Other"];
 const NO_FLODESK = { enabled: false };
 const SERVICES = ["Virtual Office", "Flexible Day Pass", "Coworking Desks", "Serviced Offices", "Meeting Rooms", "Event Venue", "Photoshoot Space", "Podcast Studio"];
 
@@ -231,7 +231,7 @@ function FormEditor({ editing, onClose, onSaved }) {
     };
     try {
       await request(editing.id ? `/forms/${editing.id}` : "/forms", { method: editing.id ? "PATCH" : "POST", body });
-      onSaved(editing.id ? "Form saved." : "Form created. Use “Embed” to add it to the website.");
+      onSaved(editing.id ? "Form saved." : "Form created. Use “Share” to put it on the website.");
     } catch (e) { setError(notBuilt(e) || e.message || "Could not save the form."); setSaving(false); }
   }
 
@@ -462,7 +462,8 @@ function SubmissionsModal({ form, onClose }) {
           <tbody>
             {state.items.map((sub) => {
               const c = sub.contactId && typeof sub.contactId === "object" ? sub.contactId : null;
-              const d = sub.dealId && typeof sub.dealId === "object" ? sub.dealId : null;
+              // dealIds (all deals, e.g. a walk-in for two services) from the 24 Nov backend; dealId is the first.
+              const deals = (Array.isArray(sub.dealIds) && sub.dealIds.length ? sub.dealIds : [sub.dealId]).filter((x) => x && typeof x === "object");
               const p = sub.payload || {};
               const who = c ? [c.firstName, c.lastName].filter(Boolean).join(" ") || c.email
                 : [p.firstName || p.first_name, p.lastName || p.last_name].filter(Boolean).join(" ") || p.email || "—";
@@ -473,7 +474,7 @@ function SubmissionsModal({ form, onClose }) {
                     <td className="rb-nowrap">{fmtWhen(sub.createdAt)}</td>
                     <td>{c ? <Link to={recordHref.contact(c._id)}>{who}</Link> : who}{c?.email && <small>{c.email}</small>}</td>
                     <td><Badge tone={SUB_TONE[sub.status] || ""}>{sub.status}</Badge>{sub.error && <small className="lk-warn-text">{sub.error}</small>}</td>
-                    <td>{d ? <Link to={recordHref.deal(d._id)}>{d.title}</Link> : "—"}</td>
+                    <td>{deals.length ? deals.map((d, i) => <React.Fragment key={d._id}>{i > 0 && <br />}<Link to={recordHref.deal(d._id)}>{d.title || "Deal"}</Link></React.Fragment>) : "—"}</td>
                     {form.flodesk?.enabled && <td>{sub.flodesk ? <>
                       <Badge tone={FLODESK_TONE[sub.flodesk.status] || ""}>{FLODESK_LABEL[sub.flodesk.status] || sub.flodesk.status}</Badge>
                       {(sub.flodesk.segments || []).length > 0 && <small>{sub.flodesk.segments.join(", ")}</small>}

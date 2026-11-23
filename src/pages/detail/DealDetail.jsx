@@ -30,6 +30,7 @@ export default function DealDetail() {
   const [move, setMove] = useState({ pipelineId: "", stageId: "", stages: [], saving: false });
   const [dealStages, setDealStages] = useState([]);   // stages of the deal's current pipeline (stage bar)
   const [stepping, setStepping] = useState("");       // stage id being moved to from the bar
+  const [closing, setClosing] = useState(null);       // { status: "won"|"lost", paid, reason, busy, error }
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -63,6 +64,22 @@ export default function DealDetail() {
     try { await patch({ pipelineId: dealPipelineId, stageId: stage._id }); }
     catch (e) { setActionError(e.message); }
     finally { setStepping(""); }
+  }
+
+  // Won/Lost is the deal's status, separate from its stage. Won needs payment confirmed; Lost needs a reason.
+  async function submitClose(e) {
+    e.preventDefault();
+    if (closing.status === "won" && !closing.paid) { setClosing({ ...closing, error: "Tick “Payment received” first. Finance must confirm payment before a deal is Won." }); return; }
+    if (closing.status === "lost" && !closing.reason.trim()) { setClosing({ ...closing, error: "Give a reason the deal was lost." }); return; }
+    setClosing({ ...closing, busy: true, error: "" });
+    try {
+      await patch(closing.status === "won" ? { status: "won", paymentReceivedConfirmed: true } : { status: "lost", lostReason: closing.reason.trim() });
+      setClosing(null);
+    } catch (err) { setClosing((c) => ({ ...c, busy: false, error: err.message })); }
+  }
+  async function reopen() {
+    setActionError("");
+    try { await patch({ status: "open" }); } catch (e) { setActionError(e.message); }
   }
 
   async function patch(body) {
@@ -134,10 +151,32 @@ export default function DealDetail() {
                 );
               })}
             </ol>
-            {canWrite && next && deal.status === "open" && (
-              <button type="button" className="btn primary dl-stage-next" disabled={Boolean(stepping)} onClick={() => goToStage(next)}>
-                Next: {next.name} →
-              </button>
+            <div className="dl-stage-actions">
+              {canWrite && next && deal.status === "open" && (
+                <button type="button" className="btn primary dl-stage-next" disabled={Boolean(stepping)} onClick={() => goToStage(next)}>
+                  Next: {next.name} →
+                </button>
+              )}
+              {canWrite && deal.status === "open" && !closing && <>
+                <button type="button" className="btn ghost" onClick={() => setClosing({ status: "won", paid: Boolean(deal.metadata?.paymentReceivedConfirmed), reason: "", busy: false, error: "" })}>Mark won</button>
+                <button type="button" className="btn ghost" onClick={() => setClosing({ status: "lost", paid: false, reason: deal.lostReason || "", busy: false, error: "" })}>Mark lost</button>
+              </>}
+              {canWrite && deal.status !== "open" && <>
+                <span className="lk-muted">Deal {deal.status === "won" ? "won" : "lost"}{deal.status === "lost" && deal.lostReason ? `: ${deal.lostReason}` : ""}.</span>
+                <button type="button" className="btn ghost" onClick={reopen}>Reopen</button>
+              </>}
+            </div>
+            {closing && (
+              <form className="dl-close-form" onSubmit={submitClose}>
+                {closing.status === "won"
+                  ? <label className="fm-inline"><input type="checkbox" checked={closing.paid} disabled={closing.busy} onChange={(e) => setClosing({ ...closing, paid: e.target.checked })} /> Payment received (confirmed by finance)</label>
+                  : <label>Why was it lost?<input autoFocus value={closing.reason} disabled={closing.busy} maxLength={500} placeholder="e.g. Chose another provider on price" onChange={(e) => setClosing({ ...closing, reason: e.target.value })} /></label>}
+                <div className="next-task-actions">
+                  <button type="submit" className="btn primary" disabled={closing.busy}>{closing.busy ? "Saving…" : closing.status === "won" ? "Mark won" : "Mark lost"}</button>
+                  <button type="button" className="btn ghost" disabled={closing.busy} onClick={() => setClosing(null)}>Cancel</button>
+                </div>
+                {closing.error && <p className="lk-warn-text">{closing.error}</p>}
+              </form>
             )}
           </section>
         );

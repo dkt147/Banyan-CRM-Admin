@@ -15,6 +15,7 @@ import { useAuth } from "../auth/AuthContext";
 import { recordHref } from "../utils/recordLinks";
 import { fromHkInput } from "../utils/hkTime";
 import { usePermissions } from "../utils/permissions";
+import NextTaskPrompt from "../components/NextTaskPrompt";
 
 const STATUS_OPTIONS = [
   { value: "pending", label: "Pending" },
@@ -171,6 +172,7 @@ export default function Tasks() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [summary, setSummary] = useState(EMPTY_SUMMARY);
   const [error, setError] = useState("");
+  const [nextFor, setNextFor] = useState(null);   // task just completed from the list: offer the next one
   const [loading, setLoading] = useState(true);
   const [loadingSummary, setLoadingSummary] = useState(true);
   const [loadingOptions, setLoadingOptions] = useState(true);
@@ -374,7 +376,8 @@ export default function Tasks() {
               ).toISOString(),
             }
           : {};
-      await request(`/tasks/${task._id}/${type}`, { method: "PATCH", body });
+      const result = await request(`/tasks/${task._id}/${type}`, { method: "PATCH", body });
+      if (type === "complete") setNextFor(result?.data && typeof result.data === "object" ? { ...task, ...result.data } : task);
       await Promise.all([loadTasks(filters), loadSummary()]);
     } catch (e) {
       setError(e.message || `Failed to ${type} task.`);
@@ -609,6 +612,10 @@ export default function Tasks() {
           <b>Tasks</b>
           <span>{error}</span>
         </div>
+      )}
+      {nextFor && canWrite && (
+        <NextTaskPrompt key={nextFor._id} task={nextFor} links={taskLinks(nextFor)}
+          onDone={(created) => { setNextFor(null); if (created) Promise.all([loadTasks(filters), loadSummary()]); }} />
       )}
 
       <section className="lk-toolbar">

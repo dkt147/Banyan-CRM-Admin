@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { recordHref } from "../utils/recordLinks";
 import { usePermissions } from "../utils/permissions";
-import { customerName, isPartnerBlock, partnerTitle, stripeUrl } from "./roomBooking";
+import { amountText, channelText, customerName, isPartnerBlock, partnerTitle, stripeUrl } from "./roomBooking";
 
 // Read-only side panel for one WordPress room booking (GET /room-bookings/:ref).
 // WordPress owns the booking: cancel, reschedule and refunds happen in WP Admin and Stripe.
@@ -44,6 +44,8 @@ export default function RoomBookingPanel({ bookingRef, onClose, onChanged }) {
   const canRefund = perms.can("bookings.refund");
   const [retrying, setRetrying] = useState(false);
   const [cancel, setCancel] = useState(null);   // null | { reason, refund, busy, error }
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   // POST /room-bookings/:ref/cancel → WordPress cancels (and refunds in Stripe), then the CRM re-syncs.
   async function submitCancel() {
@@ -57,6 +59,12 @@ export default function RoomBookingPanel({ bookingRef, onClose, onChanged }) {
       if (fresh?.data) setRow(fresh.data); else setRow((x) => ({ ...x, status: "cancelled", statusLabel: "Cancelled" }));
       setCancel(null);
       onChanged?.();
+      // The calendar removal runs just after the cancel response: reload once more shortly after.
+      setTimeout(() => {
+        request(`/room-bookings/${encodeURIComponent(bookingRef)}`)
+          .then((r) => { if (mounted.current && r?.data) setRow(r.data); })
+          .catch(() => {});
+      }, 2500);
     } catch (e) {
       setCancel((c) => ({ ...c, busy: false, error: e.message || "Could not cancel the booking." }));
     }
@@ -68,7 +76,7 @@ export default function RoomBookingPanel({ bookingRef, onClose, onChanged }) {
       const fresh = await request(`/room-bookings/${encodeURIComponent(bookingRef)}`).catch(() => null);
       setRow((x) => fresh?.data || { ...x, googleCalendar: r.data?.googleCalendar || r.data || x.googleCalendar });
     } catch (e) {
-      setRow((x) => ({ ...x, googleCalendar: { ...(x.googleCalendar || {}), error: e.message } }));
+      setRow((x) => ({ ...x, googleCalendar: { ...(x.googleCalendar || {}), error: e.message, status: "error", retry: true, label: `Calendar update failed: ${e.message}` } }));
     } finally { setRetrying(false); }
   }
 
@@ -80,6 +88,12 @@ export default function RoomBookingPanel({ bookingRef, onClose, onChanged }) {
   const link = stripeUrl(payment);
   const byCredits = payment?.method === "credits";
   const contactId = row?.contact?.id;
+  // Backend (24 Nov) sends googleCalendar.status/label/retry; older rows fall back to eventId/error.
+  const gcalLabel = gcal?.label || (gcal?.error ? null : gcal?.eventId ? `In ${roomShort} calendar`
+    : gcal?.action === "removed" ? `Removed from ${roomShort} calendar${gcal.reason === "status_cancelled" ? " (cancelled)" : ""}`
+      : "Not in the room calendar");
+  const gcalFailed = gcal?.status ? gcal.status === "error" : Boolean(gcal?.error);
+  const showRetry = gcal && (typeof gcal.retry === "boolean" ? gcal.retry : Boolean(gcal.error));
 
   return (
     <div className="rb-drawer-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -88,7 +102,7 @@ export default function RoomBookingPanel({ bookingRef, onClose, onChanged }) {
           <div>
             <span className="eyebrow">Meeting room booking</span>
             <h2 id="rb-drawer-title">{bookingRef}</h2>
-            {row && <div className="rb-drawer-badges"><RoomStatusBadge status={row.status} label={row.statusLabel} />{payment?.isTest && <TestBadge />}{row.viaCrm && <span className="rb-source">CRM</span>}</div>}
+            {row && <div className="rb-drawer-badges"><RoomStatusBadge status={row.status} label={row.statusLabel} />{payment?.isTest && !byCredits && <TestBadge />}{row.viaCrm && <span className="rb-source">CRM</span>}</div>}
           </div>
           <button type="button" className="icon-btn" aria-label="Close" onClick={onClose}>×</button>
         </div>
@@ -102,7 +116,7 @@ export default function RoomBookingPanel({ bookingRef, onClose, onChanged }) {
               <dt>Date</dt><dd>{row.dateLabel}</dd>
               <dt>Time</dt><dd>{row.startTime}–{row.endTime} ({row.hours}h)</dd>
               {row.status === "pending" && row.holdExpiresAt && <><dt>Hold ends</dt><dd>{fmt(row.holdExpiresAt)}</dd></>}
-              <dt>Source</dt><dd>{partner ? "Partner (calendar) · blocked from the room's Google Calendar" : row.channel === "admin" ? "WP Admin" : "Website checkout"}{row.viaCrm ? " · booked via CRM" : ""}</dd>
+              <dt>Source</dt><dd>{partner ? "Partner (calendar) · blocked from the room's Google Calendar" : channelText(row)}</dd>
               {row.status === "cancelled" && (row.cancelledAt || row.cancelledBy || row.cancelReason) && <>
                 <dt>Cancelled</dt><dd>{fmt(row.cancelledAt)}{row.cancelledBy ? ` by ${row.cancelledBy}` : ""}</dd>
                 {row.cancelReason && <><dt>Reason</dt><dd>{row.cancelReason}</dd></>}
@@ -115,11 +129,10 @@ export default function RoomBookingPanel({ bookingRef, onClose, onChanged }) {
             {partner ? <p className="rb-muted">This block comes from your partner's meeting "{partnerTitle(row)}", which is already in the room calendar. It is removed automatically when that meeting is moved or deleted.</p>
               : !gcal ? <p className="rb-muted">Not in Google Calendar (no calendar is set for this room, the booking predates the setting, or it isn't paid).</p>
                 : <dl>
-                  <dt>Status</dt><dd>{gcal.error ? <span className="rb-error">{gcal.error}</span> : gcal.eventId ? `In ${roomShort} calendar` : gcal.reason || gcal.action || "—"}</dd>
+                  <dt>Status</dt><dd>{gcalFailed && !gcal.label ? <span className="rb-error">{gcal.error}</span> : gcalFailed ? <span className="rb-error">{gcalLabel}</span> : gcalLabel}</dd>
                   {gcal.syncedAt && <><dt>Updated</dt><dd>{fmt(gcal.syncedAt)}</dd></>}
-                  {gcal.eventId && gcal.reason && !gcal.error && <><dt>Note</dt><dd>{gcal.reason}</dd></>}
                 </dl>}
-            {!partner && canWrite && (gcal?.error || (gcal && !gcal.eventId)) && (
+            {!partner && canWrite && showRetry && (
               <button type="button" className="btn ghost rb-retry" onClick={retryCalendar} disabled={retrying}>{retrying ? "Retrying…" : "Retry calendar update"}</button>
             )}
 
@@ -137,7 +150,7 @@ export default function RoomBookingPanel({ bookingRef, onClose, onChanged }) {
             {!blocked && payment && <>
               <h3 className="rb-section">Payment</h3>
               <dl>
-                <dt>Amount</dt><dd>{byCredits ? `Meeting room credits (${row.hours} h)` : <>{payment.amountLabel || "—"} {payment.currency}</>}{payment.isTest && <> <TestBadge /></>}</dd>
+                <dt>Amount</dt><dd>{byCredits ? amountText(row) : <>{payment.amountLabel || "—"} {payment.currency}</>}{payment.isTest && !byCredits && <> <TestBadge /></>}</dd>
                 <dt>Status</dt><dd>{payment.status || "—"}</dd>
                 <dt>Paid at</dt><dd>{fmt(payment.paidAt)}</dd>
                 {payment.refund && <><dt>Refund</dt><dd>
@@ -145,7 +158,7 @@ export default function RoomBookingPanel({ bookingRef, onClose, onChanged }) {
                   {payment.refund.amount != null ? ` HK$${Number(payment.refund.amount).toLocaleString("en-HK")}` : ""}
                   {payment.refund.id && <span className="rb-mono"> · {payment.refund.id}</span>}
                 </dd></>}
-                <dt>Mode</dt><dd>{payment.mode === "test" ? "Test (excluded from revenue)" : payment.mode === "live" ? "Live" : "—"}</dd>
+                <dt>Mode</dt><dd>{byCredits ? "Meeting room credits (not revenue)" : payment.mode === "test" ? "Test (excluded from revenue)" : payment.mode === "live" ? "Live" : "—"}</dd>
                 {payment.stripePaymentIntent && <><dt>Payment intent</dt><dd className="rb-mono">{payment.stripePaymentIntent}</dd></>}
                 {payment.stripeSessionId && <><dt>Checkout session</dt><dd className="rb-mono">{payment.stripeSessionId}</dd></>}
               </dl>

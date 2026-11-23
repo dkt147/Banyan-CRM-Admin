@@ -88,7 +88,7 @@ export function DesignFields({ design, onChange }) {
   const isDefault = JSON.stringify(d.colors) === JSON.stringify(BANYAN_DESIGN.colors) && d.headingFont === BANYAN_DESIGN.headingFont && d.bodyFont === BANYAN_DESIGN.bodyFont;
   return (
     <div className="form-grid bf-design">
-      <label className="form-span-2">Title<input value={d.title} placeholder="e.g. Welcome to Banyan Workspace" onChange={(e) => set({ title: e.target.value })} /></label>
+      <label className="form-span-2">Title<input value={d.title} placeholder="e.g. Welcome to Banyan Workspace" onChange={(e) => set({ title: e.target.value })} /><small className="lk-muted">Also the website page title. Empty uses the form name.</small></label>
       <label className="form-span-2">Introduction<textarea rows={2} value={d.intro} placeholder="A sentence or two above the fields" onChange={(e) => set({ intro: e.target.value })} /></label>
       <label>Button text<input value={d.buttonText} maxLength={40} onChange={(e) => set({ buttonText: e.target.value })} /></label>
       <label>Layout<select value={d.layout} onChange={(e) => set({ layout: e.target.value })}>{LAYOUTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
