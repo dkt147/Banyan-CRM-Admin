@@ -25,6 +25,14 @@ const signed = (n) => `${Number(n) < 0 ? "−" : "+"}${fmtDays(Math.abs(n))}`;
 const when = (d) => (d ? new Date(d).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong" }) : "—");
 const TYPE_LABEL = { purchase: "Package bought", redeem: "Used", adjust: "Adjusted", refund: "Returned" };
 const halfStep = (n) => Number.isFinite(n) && Math.round(n * 2) === n * 2;
+// Redeem response: lowBalanceEmail { status: sent | skipped | failed | not_needed, reason }.
+function lowEmailText(data) {
+  const e = data?.lowBalanceEmail;
+  if (data?.lowBalanceEmailSent || e?.status === "sent") return " A low-balance email was sent to the member.";
+  if (e?.status === "failed") return ` The low-balance email couldn't be sent${e.reason ? ` (${e.reason})` : ""}.`;
+  if (e?.status === "skipped" && e.reason && !/already sent today/i.test(e.reason)) return ` No low-balance email: ${e.reason}`;
+  return "";
+}
 
 export function DayPassCard({ contact }) {
   const { request } = useAuth();
@@ -70,7 +78,7 @@ export function DayPassCard({ contact }) {
       setAction(null);
       const left = r.data?.balance;
       setNotice(a.kind === "redeem"
-        ? `${fmtDays(days)} used.${left != null ? ` ${fmtDays(left)} left.` : ""}${r.data?.lowBalanceEmailSent ? " A low-balance email was sent to the member." : ""}`
+        ? `${fmtDays(days)} used.${left != null ? ` ${fmtDays(left)} left.` : ""}${lowEmailText(r.data)}`
         : a.kind === "purchase" ? `${fmtDays(days)} added.` : "Balance adjusted.");
       await load();
     } catch (err) { setAction((x) => ({ ...x, busy: false, error: err.message || "Could not save." })); }

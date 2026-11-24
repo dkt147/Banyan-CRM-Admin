@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { takeLoginNotice } from "../utils/loginNotice";
 
 export default function Login() {
   const { login, isAuthenticated, isLoading } = useAuth();
@@ -12,6 +13,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [notice] = useState(takeLoginNotice);   // e.g. "Your password was changed. Please sign in again."
 
   useEffect(() => {
     setError("");
@@ -123,6 +125,7 @@ export default function Login() {
                 </div>
               </label>
 
+              {notice && !error && <div className="login-notice" role="status">{notice}</div>}
               {error && (
                 <div className="login-error" role="alert">
                   {error}

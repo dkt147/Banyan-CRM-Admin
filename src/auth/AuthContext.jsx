@@ -8,6 +8,7 @@ import React, {
   useState,
 } from "react";
 import { apiRequest, API_BASE_URL } from "../api";
+import { setLoginNotice } from "../utils/loginNotice";
 
 const ACCESS_TOKEN_KEY = "banyan_access_token";
 const USER_KEY = "banyan_user";
@@ -98,7 +99,11 @@ export function AuthProvider({ children }) {
           } catch (refreshError) {
             // Only an invalid session signs the user out. A rate limit (429), a server
             // error or a network failure keeps the session so the user can retry.
-            if ([400, 401, 403].includes(refreshError?.status)) clearSession();
+            if ([400, 401, 403].includes(refreshError?.status)) {
+              // 401 SESSION_ENDED: the password was changed (here or by an admin) after this sign-in.
+              if (error?.payload?.code === "SESSION_ENDED") setLoginNotice(error.message || "Your password was changed. Please sign in again.");
+              clearSession();
+            }
             throw refreshError?.status === 429 ? refreshError : error;
           }
         }

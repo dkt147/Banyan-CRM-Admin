@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import Modal from "./Modal";
 import { useAuth } from "../auth/AuthContext";
+import { setLoginNotice } from "../utils/loginNotice";
 
 // Passwords (client meeting 25 Nov: "password reset feature").
 //   mode "set"    – an admin sets a new password for another user: POST /members/:id/password { password }
@@ -45,8 +46,14 @@ export default function PasswordModal({ mode, member, onClose }) {
     if (self && v.next === v.current) { setError("The new password must be different from the current one."); return; }
     setBusy(true); setError("");
     try {
-      if (self) await request("/auth/change-password", { method: "POST", body: { currentPassword: v.current, newPassword: v.next } });
-      else await request(`/members/${member._id}/password`, { method: "POST", body: { password: v.next } });
+      if (self) {
+        await request("/auth/change-password", { method: "POST", body: { currentPassword: v.current, newPassword: v.next } });
+        // The server has ended every session, this one included: sign in again straight away.
+        setLoginNotice("Password changed. Sign in with your new password.");
+        await logout();
+        return;
+      }
+      await request(`/members/${member._id}/password`, { method: "POST", body: { password: v.next } });
       setDone(true);
     } catch (err) {
       setError(err.status === 404 ? "Password changes need the latest server update. Please try again later."
