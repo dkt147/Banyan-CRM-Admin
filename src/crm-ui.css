@@ -602,3 +602,24 @@
 /* Loyalty: tier editing */
 .lt-tiers-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .tier-card.is-inactive { opacity: .6; }
+/* Date range filter (Contacts, Deals) */
+.drf { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.drf-range { white-space: nowrap; }
+/* Day pass credits (contact page, Check-ins) */
+.dp-balance { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.dp-balance-num { font-size: 28px; font-weight: 600; color: var(--color-text-primary, inherit); }
+.dp-balance-num.is-low { color: var(--color-warning, #b45309); }
+.dp-balance-num.is-empty { color: var(--color-danger); }
+.dp-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.dp-form { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-muted); margin: 8px 0; }
+.dp-form p { margin: 0; }
+.dp-form label { display: grid; gap: 4px; max-width: 420px; }
+.dp-notice { margin: 6px 0; font-size: var(--text-14); }
+.dp-meta { margin: 6px 0; }
+.dp-history summary { cursor: pointer; margin: 6px 0; }
+.dp-list { margin-bottom: 16px; padding: 16px; }
+.dp-list-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.dp-list-head h3 { margin: 0; flex: 1 1 auto; }
+.dp-low-cell { color: var(--color-danger); }
+.rb-block-rooms { border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: 10px 12px; display: grid; gap: 6px; }
+.rb-block-rooms legend { font-size: var(--text-14); padding: 0 4px; }

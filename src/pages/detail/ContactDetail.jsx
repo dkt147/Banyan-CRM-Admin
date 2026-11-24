@@ -9,6 +9,8 @@ import { invalidateLookups, useLookups } from "../../utils/useLookups";
 import { SEGMENT_TAGS, tagLabel } from "../../utils/contactTags";
 import { TagEditor } from "../../components/ContactTags";
 import NewCompanyModal from "../../components/NewCompanyModal";
+import NewDealModal from "../../components/NewDealModal";
+import { DayPassCard } from "../../components/DayPassCredits";
 
 // Kept for older imports; the single tag list lives in utils/contactTags.js.
 export const CONTACT_TAGS = SEGMENT_TAGS;
@@ -26,6 +28,7 @@ export default function ContactDetail() {
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
   const [newCompany, setNewCompany] = useState(false);
+  const [newDeal, setNewDeal] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -70,6 +73,7 @@ export default function ContactDetail() {
         {contact.isArchived && <Badge tone="warn">Archived</Badge>}
       </>}
       actions={canWrite && contact && <>
+        {!contact.isArchived && <button type="button" className="btn primary" onClick={() => setNewDeal(true)}>New deal</button>}
         <button type="button" className="btn ghost" onClick={() => setNewCompany(true)}>New company</button>
         {!contact.isArchived && <button type="button" className="btn ghost" onClick={archive}>Archive</button>}
         <button type="button" className="btn ghost" onClick={remove}>Delete</button>
@@ -98,6 +102,7 @@ export default function ContactDetail() {
           ]}
         />
         <TagEditor tags={contact.tags || []} canEdit={canWrite} onChange={(tags) => save({ tags })} />
+        <DayPassCard contact={contact} />
         <Card title="Record">
           <dl className="dl-fields">
             <div className="dl-field"><dt>Owner</dt><dd>{contact.ownerId?.name || "—"}</dd></div>
@@ -109,6 +114,7 @@ export default function ContactDetail() {
           </dl>
         </Card>
       </>}
+      {newDeal && <NewDealModal contact={contact} onClose={() => setNewDeal(false)} onCreated={(d) => { setNewDeal(false); navigate(recordHref.deal(d._id)); }} />}
       {newCompany && <NewCompanyModal
         onClose={() => setNewCompany(false)}
         onCreated={async (co) => { await save({ companyId: co._id }); setNewCompany(false); await load(); }} />}

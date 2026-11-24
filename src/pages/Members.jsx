@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Page, Empty } from "./Dashboard";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
+import PasswordModal from "../components/PasswordModal";
 import { useAuth } from "../auth/AuthContext";
 import { ROLE_OPTIONS, roleLabel } from "../utils/permissions";
 
@@ -34,6 +35,7 @@ export default function Members() {
   const [saving, setSaving] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [passwordFor, setPasswordFor] = useState(null);   // member getting a new password (admin)
 
   const [error, setError] = useState("");
   const [formErrors, setFormErrors] = useState({});
@@ -505,6 +507,12 @@ export default function Members() {
                         </button>
                       )}
 
+                      {canManageMembers && member._id !== user?._id && member.isActive && (
+                        <button className="btn ghost" type="button" onClick={() => setPasswordFor(member)}>
+                          Set password
+                        </button>
+                      )}
+
                       {canDeleteMembers && member._id !== user?._id && (
                         <button
                           className="btn ghost"
@@ -798,6 +806,7 @@ export default function Members() {
           </div>
         </Modal>
       )}
+      {passwordFor && <PasswordModal mode="set" member={passwordFor} onClose={() => setPasswordFor(null)} />}
     </Page>
   );
 }

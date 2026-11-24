@@ -9,9 +9,11 @@ import { usePermissions } from "../utils/permissions";
 import { recordHref } from "../utils/recordLinks";
 import { invalidateLookups, personLabel, useLookups } from "../utils/useLookups";
 import { formatMoney } from "./detail/DealDetail";
+import NewDealModal from "../components/NewDealModal";
+import DateRangeFilter, { dateRangeQuery } from "../components/DateRangeFilter";
 
 const PAGE_SIZE = 25;
-const DEFAULT_VIEW = { search: "", status: "", pipelineId: "", mine: false };
+const DEFAULT_VIEW = { search: "", status: "", pipelineId: "", mine: false, created: null };
 const STATUS_CHIPS = [["open", "Open"], ["won", "Won"], ["lost", "Lost"]];
 
 // Deals list. Each deal opens its detail page (/deal/:id); the drag-and-drop board
@@ -29,6 +31,7 @@ export default function Deal() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [lostModal, setLostModal] = useState(null);
+  const [newDeal, setNewDeal] = useState(false);
   const sel = useSelection(rows);
   const canWrite = usePermissions().can("records.write");
   const legacyId = searchParams.get("id");
@@ -37,7 +40,7 @@ export default function Deal() {
     setLoading(true); setError("");
     try {
       const r = await request("/deals", {
-        query: { page, limit: PAGE_SIZE, search: view.search, status: view.status, pipelineId: view.pipelineId, ownerId: view.mine ? user?._id : undefined },
+        query: { page, limit: PAGE_SIZE, search: view.search, status: view.status, pipelineId: view.pipelineId, ownerId: view.mine ? user?._id : undefined, ...dateRangeQuery(view.created) },
       });
       setRows(r.data?.items || []);
       setMeta({ total: r.data?.pagination?.total || 0, pages: r.data?.pagination?.pages || 1 });
@@ -68,7 +71,10 @@ export default function Deal() {
 
   return (
     <Page title="Deals" kicker={`${meta.total} deal${meta.total === 1 ? "" : "s"}`}
-      actions={<Link className="btn ghost" to="/pipelines">Open pipeline board</Link>}>
+      actions={<>
+        {canWrite && <button type="button" className="btn primary" onClick={() => setNewDeal(true)}>+ New deal</button>}
+        <Link className="btn ghost" to="/pipelines">Open pipeline board</Link>
+      </>}>
       <section className="lk-toolbar">
         <SearchBox value={view.search} onChange={(search) => update({ search })} placeholder="Search deal title or source" />
         <select aria-label="Pipeline" value={view.pipelineId} onChange={(e) => update({ pipelineId: e.target.value })}>
@@ -80,6 +86,7 @@ export default function Deal() {
       <section className="lk-filterbar">
         <FilterChips label="Status" chips={STATUS_CHIPS.map(([key, label]) => ({ key, label, active: view.status === key }))} onToggle={(s) => update({ status: view.status === s ? "" : s })} onClear={() => update({ status: "" })} />
         <FilterChips chips={[{ key: "mine", label: "My deals", active: view.mine }]} onToggle={() => update({ mine: !view.mine })} />
+        <DateRangeFilter label="Created" value={view.created} onChange={(created) => update({ created })} />
       </section>
       {notice && <div className="notice"><b>Deals</b><span>{notice}</span></div>}
       <BulkBar count={canWrite ? sel.count : 0} onClear={sel.clear}>
@@ -119,6 +126,7 @@ export default function Deal() {
         <Pager page={page} pages={meta.pages} total={meta.total} loading={loading} onPage={setPage} />
       </section>
 
+      {newDeal && <NewDealModal onClose={() => setNewDeal(false)} onCreated={(d) => { setNewDeal(false); navigate(recordHref.deal(d._id)); }} />}
       {lostModal && (
         <Modal title={`Mark ${sel.count} deal(s) as lost`} onClose={() => setLostModal(null)} actions={<>
           <button type="button" className="btn ghost" onClick={() => setLostModal(null)}>Cancel</button>

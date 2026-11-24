@@ -10,9 +10,10 @@ import { recordHref } from "../utils/recordLinks";
 import { invalidateLookups, useLookups } from "../utils/useLookups";
 import { tagInfo, tagLabel } from "../utils/contactTags";
 import { TagGuide, TagOptions, useTagCounts } from "../components/ContactTags";
+import DateRangeFilter, { dateRangeQuery } from "../components/DateRangeFilter";
 
 const PAGE_SIZE = 25;
-const DEFAULT_VIEW = { search: "", status: "active", tag: "", companyId: "", mine: false };
+const DEFAULT_VIEW = { search: "", status: "active", tag: "", companyId: "", mine: false, created: null };
 const blankForm = { firstName: "", lastName: "", email: "", phone: "", whatsapp: "", jobTitle: "", companyId: "", tags: "", source: "", language: "en", notes: "" };
 const fmtShort = (v) => (v ? new Date(v).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "");
 
@@ -44,7 +45,7 @@ export default function Contacts() {
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const query = { page, limit: PAGE_SIZE, search: view.search, companyId: view.companyId, tag: view.tag };
+      const query = { page, limit: PAGE_SIZE, search: view.search, companyId: view.companyId, tag: view.tag, ...dateRangeQuery(view.created) };
       query.isArchived = view.status === "all" ? "all" : view.status === "archived";
       if (view.mine && user?._id) query.ownerId = user._id;
       const r = await request("/contacts", { query });
@@ -118,6 +119,7 @@ export default function Contacts() {
           </span>
         ))}
         <FilterChips chips={[{ key: "mine", label: "My contacts", active: view.mine }]} onToggle={() => update({ mine: !view.mine })} />
+        <DateRangeFilter label="Added" value={view.created} onChange={(created) => update({ created })} />
       </section>
       <TagGuide />
       {notice && <div className="notice"><b>Contacts</b><span>{notice}</span></div>}

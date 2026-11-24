@@ -8,7 +8,7 @@ import { FALLBACK_CONFIG, errorCode, hl, longDate, timeAgo } from "./roomBooking
 // The server also runs this every 10 minutes while the setting is on.
 
 const ERROR_TEXT = {
-  PARTNER_BLOCKS_DISABLED: "Turn on \"Block partner events in WordPress\" in the Google Calendar settings above, save, then sync.",
+  PARTNER_BLOCKS_DISABLED: "Turn on \"Block the website when a room is booked directly in Google Calendar\" in the Google Calendar settings above, save, then sync.",
   INTEGRATION_NOT_CONNECTED: "Google Calendar isn't connected. Connect it on Settings → Integrations → Google.",
   WP_BLOCKS_UNSUPPORTED: "The WordPress plugin on the website doesn't support partner blocks yet.",
 };

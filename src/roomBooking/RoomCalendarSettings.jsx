@@ -11,8 +11,10 @@ import { FALLBACK_CONFIG, errorCode, hkDateTime, timeAgo } from "./roomBooking";
 export const LIBRARY_CALENDAR_ID = "c_682acafdb6beb189d861f1a728b9c5bff9bf1d584e82cbf9d44f602ebecd952b@group.calendar.google.com";
 const DEFAULTS = {
   calendars: { small: "", medium: "", library: LIBRARY_CALENDAR_ID },
-  includePending: false, showPartnerEvents: true, partnerBlocks: { enabled: false },
+  includePending: false, showPartnerEvents: true, partnerBlocks: { enabled: false, rooms: { small: true, medium: true, library: false } },
 };
+// Per-room blocking (client 25 Nov). The Library is off unless someone ticks it: it is the partner's live calendar.
+const blockRooms = (pb) => ({ ...DEFAULTS.partnerBlocks.rooms, ...(pb?.rooms || {}) });
 const CAL_RX = /^[^\s@]+@(group\.calendar\.google\.com|[a-z0-9.-]+\.[a-z]{2,})$/i;
 const ERROR_HINTS = {
   ROOM_CALENDAR_NOT_ACCESSIBLE: "Share the calendar with the Google account connected on the Integrations page, then save again.",
@@ -33,7 +35,7 @@ export default function RoomCalendarSettings({ onChange }) {
   function apply(d) {
     setV({
       ...DEFAULTS, includePending: Boolean(d.includePending), showPartnerEvents: d.showPartnerEvents !== false,
-      partnerBlocks: { enabled: Boolean(d.partnerBlocks?.enabled) },
+      partnerBlocks: { enabled: Boolean(d.partnerBlocks?.enabled), rooms: blockRooms(d.partnerBlocks) },
       calendars: { ...DEFAULTS.calendars, ...(d.calendars || {}) },
     });
     setStatus({ loading: false, available: true, saved: d.saved, connected: d.connected ?? null, lastSync: d.lastSync || null, lastError: d.lastError || null, pushFrom: d.pushFrom || {} });
@@ -75,7 +77,7 @@ export default function RoomCalendarSettings({ onChange }) {
   const summaryText = [
     v.calendars.library ? "Library → partner calendar" : "Library not set",
     v.calendars.small || v.calendars.medium ? "Meeting rooms → calendar set" : "Meeting rooms calendar not set",
-    v.partnerBlocks.enabled ? "Partner blocks on" : null,
+    v.partnerBlocks.enabled ? `Website blocking on: ${FALLBACK_CONFIG.rooms.filter((r) => v.partnerBlocks.rooms[r.key]).map((r) => r.key === "library" ? "Library" : r.key === "small" ? "small room" : "large room").join(", ") || "no rooms"}` : null,
   ].filter(Boolean).join(" · ");
 
   return (
@@ -100,9 +102,19 @@ export default function RoomCalendarSettings({ onChange }) {
         <label className="fm-inline form-span-2"><input type="checkbox" disabled={!canManage} checked={v.includePending} onChange={(e) => setV({ ...v, includePending: e.target.checked })} /> Also add bookings that are still awaiting payment (removed if the hold expires)</label>
         <label className="fm-inline form-span-2"><input type="checkbox" disabled={!canManage} checked={v.showPartnerEvents} onChange={(e) => setV({ ...v, showPartnerEvents: e.target.checked })} /> Show the other events already in these calendars on the CRM calendar (read-only)</label>
         <label className="fm-inline form-span-2 rb-gcal-toggle">
-          <input type="checkbox" disabled={!canManage} checked={v.partnerBlocks.enabled} onChange={(e) => setV({ ...v, partnerBlocks: { enabled: e.target.checked } })} />
-          <span><b>Block partner events in WordPress</b><br /><small className="lk-muted">Meetings your partner adds in the room calendar block that time on the website within about 10 minutes, so customers can't book over them.</small></span>
+          <input type="checkbox" disabled={!canManage} checked={v.partnerBlocks.enabled} onChange={(e) => setV({ ...v, partnerBlocks: { ...v.partnerBlocks, enabled: e.target.checked } })} />
+          <span><b>Block the website when a room is booked directly in Google Calendar</b><br /><small className="lk-muted">Anything added by hand to a room calendar (by your team or your partner) blocks that time on the website and in the CRM within a few minutes, so nobody can book over it. Google Calendar itself is never changed.</small></span>
         </label>
+        {v.partnerBlocks.enabled && <fieldset className="form-span-2 rb-block-rooms">
+          <legend>Which room calendars block the website</legend>
+          {FALLBACK_CONFIG.rooms.map((r) => (
+            <label key={r.key} className="fm-inline">
+              <input type="checkbox" disabled={!canManage || !v.calendars[r.key]} checked={Boolean(v.partnerBlocks.rooms[r.key]) && Boolean(v.calendars[r.key])}
+                onChange={(e) => setV({ ...v, partnerBlocks: { ...v.partnerBlocks, rooms: { ...v.partnerBlocks.rooms, [r.key]: e.target.checked } } })} />
+              {r.name} ({r.capacity}){!v.calendars[r.key] ? " · no calendar set" : ""}{r.key === "library" ? " · your partner's live calendar: run the preview below first" : ""}
+            </label>
+          ))}
+        </fieldset>}
       </div>
 
       <h4>What the CRM will do</h4>

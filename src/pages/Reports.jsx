@@ -25,6 +25,9 @@ const METRICS = [
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const fmt = (kind, v) => (kind === "money" ? formatMoney(v || 0) : Number(v || 0).toLocaleString("en-HK"));
 
+// Banyan started using the CRM in 2026: reports never go further back (client, 25 Nov).
+export const REPORTS_START_YEAR = 2026;
+
 export default function Reports() {
   const { request } = useAuth();
   const thisYear = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Hong_Kong", year: "numeric" }).format(new Date()));
@@ -38,7 +41,7 @@ export default function Reports() {
     request("/dashboard/pipeline").then((p) => setPipeline(p.data || [])).catch(() => setPipeline([]));
     try {
       // 5 years of months (max 120 months per request). Yearly totals are summed here from the months.
-      const r = await request("/reports/periodic", { query: { period: "month", from: `${thisYear - 4}-01`, to: `${thisYear}-12` } });
+      const r = await request("/reports/periodic", { query: { period: "month", from: `${Math.max(thisYear - 4, REPORTS_START_YEAR)}-01`, to: `${thisYear}-12` } });
       const months = Object.fromEntries((r.data?.periods || []).map((p) => [p.key, p]));
       setState({ months, definitions: r.data?.definitions || {}, loading: false, error: "" });
     } catch (e) {
@@ -49,7 +52,7 @@ export default function Reports() {
 
   const years = useMemo(() => {
     const ys = new Set([thisYear, ...Object.keys(state.months).map((k) => Number(k.slice(0, 4)))]);
-    return [...ys].filter(Boolean).sort((a, b) => b - a);
+    return [...ys].filter((y) => y && y >= REPORTS_START_YEAR).sort((a, b) => b - a);
   }, [state.months, thisYear]);
 
   const rows = useMemo(() => {

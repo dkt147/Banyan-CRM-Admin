@@ -19,17 +19,20 @@ const RANGES = {
 };
 
 const today = () => toHkInput(new Date(), "date");
+// No data before Banyan started on the CRM (Reports.jsx REPORTS_START_YEAR).
+const EARLIEST = "2026-01-01";
+const clampFrom = (d) => (d < EARLIEST ? EARLIEST : d);
 function rangeFor(period, key) {
   const to = today();
   if (period === "week") {
     const days = (RANGES.week.find(([k]) => k === key) || RANGES.week[0])[2];
-    return { from: toHkInput(hkAddDays(new Date(), -days + 1), "date"), to };
+    return { from: clampFrom(toHkInput(hkAddDays(new Date(), -days + 1), "date")), to };
   }
   const [y, m] = to.split("-").map(Number);
-  if (key === "ytd") return { from: `${y}-01-01`, to };
+  if (key === "ytd") return { from: clampFrom(`${y}-01-01`), to };
   const months = (RANGES.month.find(([k]) => k === key) || RANGES.month[1])[2];
   const start = new Date(Date.UTC(y, m - 1 - (months - 1), 1));
-  return { from: start.toISOString().slice(0, 10), to };
+  return { from: clampFrom(start.toISOString().slice(0, 10)), to };
 }
 
 export default function Breakdown() {
@@ -98,7 +101,7 @@ export default function Breakdown() {
           <option value="custom">Custom dates</option>
         </select>
         {custom && <>
-          <label className="rb-daterange">From<input type="date" value={custom.from} max={custom.to} onChange={(e) => e.target.value && setCustom({ ...custom, from: e.target.value })} /></label>
+          <label className="rb-daterange">From<input type="date" value={custom.from} min={EARLIEST} max={custom.to} onChange={(e) => e.target.value && setCustom({ ...custom, from: clampFrom(e.target.value) })} /></label>
           <label className="rb-daterange">To<input type="date" value={custom.to} min={custom.from} onChange={(e) => e.target.value && setCustom({ ...custom, to: e.target.value })} /></label>
         </>}
         <label className="fm-inline"><input type="checkbox" checked={showEmpty} onChange={(e) => setShowEmpty(e.target.checked)} /> Show empty columns</label>

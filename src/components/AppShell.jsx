@@ -7,6 +7,7 @@ import { longDate } from "../utils/dates";
 import AssistantPanel from "./AssistantPanel";
 import GlobalSearch from "./GlobalSearch";
 import { roleLabel, usePermissions } from "../utils/permissions";
+import PasswordModal from "./PasswordModal";
 
 // Main navigation in the order of the brief (6.7). `match` lists the route prefixes that
 // highlight the item (e.g. both /calendar and /bookings for Bookings and Calendar).
@@ -47,6 +48,7 @@ export default function AppShell({ children }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showSidebarMenu, setShowSidebarMenu] = useState(false);
+  const [changePassword, setChangePassword] = useState(false);
   const [overdueFollowUps, setOverdueFollowUps] = useState(null);
   const [calendarWeek, setCalendarWeek] = useState(() => isoWeekNumber(new Date()));
   const [assistantOpen, setAssistantOpen] = useState(false);
@@ -233,6 +235,7 @@ export default function AppShell({ children }) {
                   <small>{user?.email || user?.jobTitle || "CRM user"} · {roleLabel(user?.role)}</small>
                 </div>
                 <button type="button" role="menuitem" onClick={() => { setShowSidebarMenu(false); nav("/workspace"); }}>Workspace settings</button>
+                <button type="button" role="menuitem" onClick={() => { setShowSidebarMenu(false); setChangePassword(true); }}>Change password</button>
                 <button type="button" role="menuitem" onClick={() => { setShowSidebarMenu(false); logout(); }}>Sign out</button>
               </div>
             )}
@@ -330,6 +333,7 @@ export default function AppShell({ children }) {
                       <small>{user?.jobTitle || user?.role || "CRM user"}</small>
                     </div>
                     <button type="button" className="profile-menu-action" onClick={() => { setShowProfile(false); nav("/workspace"); }}>Workspace settings</button>
+                    <button type="button" className="profile-menu-action" onClick={() => { setShowProfile(false); setChangePassword(true); }}>Change password</button>
                     <button type="button" className="profile-menu-action" onClick={() => { setShowProfile(false); logout(); }}>Sign out</button>
                   </div>
                 )}
@@ -347,6 +351,8 @@ export default function AppShell({ children }) {
         initialPrompt={assistantPrompt}
         autoSubmitToken={assistantLaunchToken}
       />
+
+      {changePassword && <PasswordModal mode="change" onClose={() => setChangePassword(false)} />}
 
       {board && (
         <ScreenBoard

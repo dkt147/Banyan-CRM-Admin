@@ -4,6 +4,7 @@ import Modal from "../components/Modal";
 import Badge from "../components/Badge";
 import { useAuth } from "../auth/AuthContext";
 import { fromHkInput, toHkInput } from "../utils/hkTime";
+import { DayPassBalances } from "../components/DayPassCredits";
 
 const EMPTY_FORM = {
   contactId: "",
@@ -129,6 +130,7 @@ export default function CheckIns() {
   return (
     <Page title="Check-ins" kicker="Membership attendance records" actions={<button className="btn primary" onClick={openCreate}>New check-in</button>}>
       {error && <div className="notice error"><b>Check-ins</b><span>{error}</span></div>}
+      <DayPassBalances />
       <section className="panel table-wrap">
         <table>
           <thead><tr><th>Contact</th><th>Membership</th><th>Checked in</th><th>Checked out</th><th>Source</th><th>Actions</th></tr></thead>

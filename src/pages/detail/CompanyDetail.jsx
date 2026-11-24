@@ -7,6 +7,7 @@ import { usePermissions } from "../../utils/permissions";
 import { recordHref } from "../../utils/recordLinks";
 import { invalidateLookups } from "../../utils/useLookups";
 import { CreditsCard, LoyaltyCard } from "../../components/CompanyCredits";
+import NewDealModal from "../../components/NewDealModal";
 
 const ADDRESS_KEYS = ["street", "city", "country", "postalCode"];
 const OPTIONAL = ["legalName", "industry", "website", "email", "phone", "notes"];
@@ -21,6 +22,7 @@ export default function CompanyDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
+  const [newDeal, setNewDeal] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -67,11 +69,13 @@ export default function CompanyDetail() {
       loading={loading} error={error} onRetry={load}
       badges={company && <>{(company.tags || []).map((t) => <Badge key={t}>{t}</Badge>)}{company.isArchived && <Badge tone="warn">Archived</Badge>}</>}
       actions={canWrite && company && <>
+        {!company.isArchived && <button type="button" className="btn primary" onClick={() => setNewDeal(true)}>New deal</button>}
         {!company.isArchived && <button type="button" className="btn ghost" onClick={archive}>Archive</button>}
         <button type="button" className="btn ghost" onClick={remove}>Delete</button>
       </>}
     >
       {actionError && <div className="notice error"><b>Companies</b><span>{actionError}</span></div>}
+      {newDeal && <NewDealModal company={company} contacts={contacts.items} onClose={() => setNewDeal(false)} onCreated={(d) => { setNewDeal(false); navigate(recordHref.deal(d._id)); }} />}
       {company && <>
         <FieldGrid
           canEdit={canWrite}
