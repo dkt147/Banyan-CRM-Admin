@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { usePermissions } from "../utils/permissions";
 import { formatMoney } from "../pages/detail/DealDetail";
@@ -35,10 +35,20 @@ export function CreditsCard({ companyId, allowance: initialAllowance, onAllowanc
   const [adjust, setAdjust] = useState(null);                  // { hours, note, busy, error }
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const autoJumped = useRef(false);   // open once on the month of the next credit booking
 
   const load = useCallback(async () => {
     setState((s) => ({ ...s, loading: true, error: "" }));
-    try { setState({ data: (await request(`/companies/${companyId}/credits`, { query: { month } })).data, loading: false, error: "" }); }
+    try {
+      const data = (await request(`/companies/${companyId}/credits`, { query: { month } })).data;
+      setState({ data, loading: false, error: "" });
+      // nextBookingMonth (backend, when sent): month of the company’s next upcoming credit booking.
+      if (!autoJumped.current) {
+        autoJumped.current = true;
+        const next = data?.nextBookingMonth;
+        if (next && next !== month && !(data.entries || []).length) setMonth(next);
+      }
+    }
     catch (e) { setState({ data: null, loading: false, error: e.status === 404 ? "" : e.message || "Could not load credits." }); }
   }, [companyId, month, request]);
   useEffect(() => { load(); }, [load]);

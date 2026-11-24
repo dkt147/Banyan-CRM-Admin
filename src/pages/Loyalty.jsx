@@ -10,6 +10,7 @@ import Modal from "../components/Modal";
 
 import { useAuth } from "../auth/AuthContext";
 import CompanyTiers from "./loyalty/CompanyTiers";
+import TierEditor from "./loyalty/TierEditor";
 
 export default function Loyalty() {
 
@@ -21,6 +22,8 @@ export default function Loyalty() {
     [ledger, setLedger] = useState([]),
     [contacts, setContacts] = useState([]),
     [modal, setModal] = useState(null),
+    [tierEdit, setTierEdit] = useState(null),   // null | "new" | tier being edited
+    [tierVersion, setTierVersion] = useState(0),
     [form, setForm] = useState({
       contactId: "",
       points: 100,
@@ -207,7 +210,7 @@ export default function Loyalty() {
         </div>
       )}
 
-      <CompanyTiers />
+      <CompanyTiers key={tierVersion} />
 
       <h3 className="rp-section-title">Points (per contact)</h3>
       <div className="metrics five">
@@ -240,13 +243,17 @@ export default function Loyalty() {
       </div>
 
       <section>
-        <SectionTitle title="The tiers" />
+        <div className="lt-tiers-head">
+          <SectionTitle title="The tiers" />
+          <button type="button" className="btn primary" onClick={() => setTierEdit("new")}>Add tier</button>
+        </div>
+        <p className="lk-muted">Edit names, starting spend and perks here. Company tiers above update straight away.</p>
 
         <div className="tier-grid">
           {tiers.map((t) => (
-            <div className="tier-card" key={t._id}>
+            <div className={`tier-card${t.isActive === false ? " is-inactive" : ""}`} key={t._id}>
               <div>
-                <b>◈ {t.name}</b>
+                <b>◈ {t.name}{t.isActive === false ? " (inactive)" : ""}</b>
                 <span>{Number(t.minSpend || 0).toLocaleString()}+ HKD</span>
               </div>
 
@@ -261,35 +268,18 @@ export default function Loyalty() {
               ))}
 
               <div className="actions">
-                <button
-                  className="btn ghost"
-                  onClick={async () => {
-                    try {
-                      await request(`/loyalty-tiers/${t._id}`, {
-                        method: "PATCH",
-                        body: {
-                          discountPercent: t.discountPercent,
-                          isActive: !t.isActive,
-                        },
-                      });
-                      load();
-                    } catch (e) {
-                      setError(e.message);
-                    }
-                  }}
-                >
-                  Toggle
-                </button>
+                <button type="button" className="btn ghost" onClick={() => setTierEdit(t)}>Edit</button>
 
                 <button
                   className="btn ghost"
                   onClick={async () => {
-                    if (!confirm("Delete tier?")) return;
+                    if (!confirm(`Delete the ${t.name} tier? Companies in it move to the next lower tier. To keep it for later, use Edit and untick Active instead.`)) return;
 
                     try {
                       await request(`/loyalty-tiers/${t._id}`, {
                         method: "DELETE",
                       });
+                      setTierVersion((n) => n + 1);
                       load();
                     } catch (e) {
                       setError(e.message);
@@ -414,6 +404,10 @@ export default function Loyalty() {
         </div>
       </section>
 
+      {tierEdit && (
+        <TierEditor tier={tierEdit === "new" ? null : tierEdit} tiers={tiers} onClose={() => setTierEdit(null)}
+          onSaved={() => { setTierEdit(null); setTierVersion((n) => n + 1); load(); }} />
+      )}
       {modal && (
         <Modal
           title={modal}

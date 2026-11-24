@@ -3,6 +3,7 @@ import { Page, SectionTitle, Empty } from "./Dashboard";
 import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import { useAuth } from "../auth/AuthContext";
+import { sourceLabel } from "../utils/sourceLabel";
 
 const blankPipeline = {
   name: "",
@@ -1688,7 +1689,7 @@ function DealDrawer({ deal, stages, onMove, onClose }) {
 
           <dt>Source</dt>
 
-          <dd>{deal.source || "—"}</dd>
+          <dd>{sourceLabel(deal.source)}</dd>
         </dl>
 
         <SectionTitle title="Close outcome" />

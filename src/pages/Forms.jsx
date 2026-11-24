@@ -67,6 +67,7 @@ const WALK_IN_PRESET = {
   ],
   consentText: "",
   tagsToApply: ["walk_in"],
+  createTask: true,   // client 24 Nov: always a follow-up task, due the next day
   design: { ...BANYAN_DESIGN, title: "Welcome to Banyan Workspace", intro: "Thank you for joining us today. We hope your visit is productive. Kindly share your details with us for our records, and so we can stay in touch with you!" },
   flodesk: { enabled: true },
 };

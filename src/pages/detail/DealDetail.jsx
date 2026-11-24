@@ -8,6 +8,7 @@ import { recordHref } from "../../utils/recordLinks";
 import { invalidateLookups, personLabel, useLookups } from "../../utils/useLookups";
 import { fromHkInput } from "../../utils/hkTime";
 import NewCompanyModal from "../../components/NewCompanyModal";
+import { sourceLabel } from "../../utils/sourceLabel";
 
 export const formatMoney = (value, currency = "HKD") => {
   const n = Number(value || 0);
@@ -187,7 +188,7 @@ export default function DealDetail() {
             <div className="dl-field"><dt>Contact</dt><dd>{contact ? <Link to={recordHref.contact(contact._id)}>{personLabel(contact)}</Link> : "—"}{contact?.email && <small className="dl-sub">{contact.email}</small>}</dd></div>
             <div className="dl-field"><dt>Company</dt><dd>{company ? <Link to={recordHref.company(company._id)}>{company.name}</Link> : "—"}</dd></div>
             <div className="dl-field"><dt>Owner</dt><dd>{deal.ownerId?.name || "—"}</dd></div>
-            <div className="dl-field"><dt>Source</dt><dd>{deal.source || "—"}</dd></div>
+            <div className="dl-field"><dt>Source</dt><dd>{sourceLabel(deal.source)}</dd></div>
           </dl>
         </Card>
         <FieldGrid

@@ -599,3 +599,6 @@
 .lt-tier.active { border-color: var(--color-primary); background: var(--color-primary-bg); }
 .lt-tier span, .lt-tier small, .lt-tier em { font-size: 12px; color: var(--color-text-secondary); font-style: normal; }
 .fd-status { margin-bottom: 16px; }
+/* Loyalty: tier editing */
+.lt-tiers-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.tier-card.is-inactive { opacity: .6; }
