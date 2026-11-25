@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { Page } from "./Dashboard";
 import Badge from "../components/Badge";
@@ -36,16 +36,20 @@ export default function Deal() {
   const canWrite = usePermissions().can("records.write");
   const legacyId = searchParams.get("id");
 
+  // Filters can change faster than the server answers: only the latest request may update the list.
+  const latest = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++latest.current;
     setLoading(true); setError("");
     try {
       const r = await request("/deals", {
         query: { page, limit: PAGE_SIZE, search: view.search, status: view.status, pipelineId: view.pipelineId, ownerId: view.mine ? user?._id : undefined, ...dateRangeQuery(view.created) },
       });
+      if (seq !== latest.current) return;
       setRows(r.data?.items || []);
       setMeta({ total: r.data?.pagination?.total || 0, pages: r.data?.pagination?.pages || 1 });
-    } catch (e) { setError(e.message || "Failed to load deals."); setRows([]); }
-    finally { setLoading(false); }
+    } catch (e) { if (seq === latest.current) { setError(e.message || "Failed to load deals."); setRows([]); } }
+    finally { if (seq === latest.current) setLoading(false); }
   }, [request, page, view, user?._id]);
   useEffect(() => { if (!legacyId) load(); }, [load, legacyId]);
 

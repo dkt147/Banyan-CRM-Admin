@@ -22,6 +22,11 @@ export const fmtDays = (n) => {
   return `${v.toLocaleString("en-HK", { maximumFractionDigits: 1 })} day${Math.abs(v) === 1 ? "" : "s"}`;
 };
 const signed = (n) => `${Number(n) < 0 ? "−" : "+"}${fmtDays(Math.abs(n))}`;
+// "2026-11-24" → "24 Nov 2026" (a calendar date, so no time zone shift).
+const visitDay = (s) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s));
+  return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : String(s);
+};
 const when = (d) => (d ? new Date(d).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Hong_Kong" }) : "—");
 const TYPE_LABEL = { purchase: "Package bought", redeem: "Used", adjust: "Adjusted", refund: "Returned" };
 const halfStep = (n) => Number.isFinite(n) && Math.round(n * 2) === n * 2;
@@ -154,7 +159,7 @@ export function DayPassCard({ contact }) {
                 {d.entries.map((x) => (
                   <tr key={x.id || x._id || `${x.at}-${x.type}`}>
                     <td className="rb-nowrap">{when(x.at)}</td>
-                    <td>{TYPE_LABEL[x.type] || x.type}{x.date ? ` · visit ${x.date}` : ""}{x.amount ? ` · HK$${Number(x.amount).toLocaleString("en-HK")}` : ""}{x.note ? <small className="dl-sub">{x.note}</small> : null}</td>
+                    <td>{TYPE_LABEL[x.type] || x.type}{x.date ? ` · visit ${visitDay(x.date)}` : ""}{x.amount ? ` · HK$${Number(x.amount).toLocaleString("en-HK")}` : ""}{x.note ? <small className="dl-sub">{x.note}</small> : null}</td>
                     <td className="rb-nowrap">{signed(x.days)}</td>
                     <td>{x.by || "—"}</td>
                   </tr>

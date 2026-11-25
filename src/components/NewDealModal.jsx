@@ -22,6 +22,7 @@ export default function NewDealModal({ contact = null, contacts = null, company 
   const lookups = useLookups(contact || contacts ? ["pipelines"] : ["pipelines", "contacts"]);
   const pipelines = lookups.pipelines || [];
   const contactOptions = contact ? [contact] : contacts || lookups.contacts || [];
+  const contactsLoading = !contact && !contacts && (lookups.loading || []).includes("contacts");
   const [v, setV] = useState({
     title: "", contactId: contact?._id || contacts?.[0]?._id || "", pipelineId: "", stageId: "",
     value: "", productType: "membership", source: "", expectedCloseDate: "",
@@ -43,24 +44,26 @@ export default function NewDealModal({ contact = null, contacts = null, company 
       .then((r) => {
         if (!alive) return;
         const rows = r.data?.items || r.data || [];
-        setStages(rows);
-        setV((x) => ({ ...x, stageId: rows.some((s) => s._id === x.stageId) ? x.stageId : rows[0]?._id || "" }));
+        setStages(Array.isArray(rows) ? rows : []);
+        setV((x) => ({ ...x, stageId: rows.some?.((s) => s._id === x.stageId) ? x.stageId : rows[0]?._id || "" }));
       })
       .catch((e) => alive && setError(e.message || "Could not load the stages."));
     return () => { alive = false; };
   }, [v.pipelineId, request]);
   useEffect(() => { if (!v.contactId && contactOptions[0]) setV((x) => ({ ...x, contactId: contactOptions[0]._id })); }, [contactOptions, v.contactId]);
 
+  const stageId = stages.some((s) => s._id === v.stageId) ? v.stageId : stages[0]?._id || "";
+
   async function submit(e) {
     e.preventDefault();
     if (!v.title.trim()) { setError("Give the deal a title, e.g. “Private office for 4 – Jan 2027”."); return; }
     if (!v.contactId) { setError(company ? "Add a contact to this company first: every deal needs a contact." : "Choose a contact."); return; }
-    if (!v.pipelineId || !v.stageId) { setError("Choose a pipeline and stage."); return; }
+    if (!v.pipelineId || !stageId) { setError("Choose a pipeline and stage."); return; }
     const value = v.value === "" ? 0 : Number(v.value);
     if (!Number.isFinite(value) || value < 0) { setError("Value must be 0 or more."); return; }
     setBusy(true); setError("");
     try {
-      const body = { title: v.title.trim(), contactId: v.contactId, pipelineId: v.pipelineId, stageId: v.stageId, value, productType: v.productType };
+      const body = { title: v.title.trim(), contactId: v.contactId, pipelineId: v.pipelineId, stageId, value, productType: v.productType };
       const picked = contactOptions.find((c) => c._id === v.contactId);
       const companyId = company?._id || (picked?.companyId && typeof picked.companyId === "object" ? picked.companyId._id : picked?.companyId);
       if (companyId) body.companyId = companyId;
@@ -82,7 +85,7 @@ export default function NewDealModal({ contact = null, contacts = null, company 
         <label>Contact
           {contact ? <input value={personLabel(contact)} disabled readOnly />
             : <select value={v.contactId} disabled={busy} onChange={(e) => setV({ ...v, contactId: e.target.value })}>
-              {!contactOptions.length && <option value="">No contacts</option>}
+              {!contactOptions.length && <option value="">{contactsLoading ? "Loading…" : "No contacts"}</option>}
               {contactOptions.map((c) => <option key={c._id} value={c._id}>{personLabel(c)}</option>)}
             </select>}
         </label>
@@ -93,7 +96,8 @@ export default function NewDealModal({ contact = null, contacts = null, company 
           </select>
         </label>
         <label>Stage
-          <select value={v.stageId} disabled={busy} onChange={(e) => setV({ ...v, stageId: e.target.value })}>
+          <select value={stageId} disabled={busy} onChange={(e) => setV({ ...v, stageId: e.target.value })}>
+            {!stages.length && <option value="">Loading…</option>}
             {stages.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
           </select>
         </label>

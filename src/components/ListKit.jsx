@@ -51,6 +51,7 @@ export function SavedViews({ page, current, onApply }) {
   const views = useMemo(() => user?.preferences?.savedViews?.[page] || [], [user, page]);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
+  const [naming, setNaming] = useState(null);   // the new view's name while it's being typed
 
   async function persist(nextViews) {
     setError("");
@@ -61,16 +62,17 @@ export function SavedViews({ page, current, onApply }) {
     } catch (e) { setError(e.message || "Could not save the view."); }
   }
 
-  async function saveCurrent() {
-    const name = window.prompt("Name this view");
-    if (!name || !name.trim()) return;
-    const trimmed = name.trim().slice(0, 60);
+  async function saveCurrent(e) {
+    e.preventDefault();
+    const trimmed = (naming || "").trim().slice(0, 60);
+    if (!trimmed) { setError("Give the view a name."); return; }
     await persist([...views.filter((v) => v.name !== trimmed), { name: trimmed, state: current }].slice(-20));
+    setNaming(null);
   }
 
   return (
     <div className="lk-views">
-      <button type="button" className="btn ghost lk-views-btn" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+      <button type="button" className="btn ghost lk-views-btn" aria-expanded={open} onClick={() => { setOpen((v) => !v); setNaming(null); setError(""); }}>
         <Icon name="BookmarkSimple" size={15} /> Views{views.length ? ` (${views.length})` : ""}
       </button>
       {open && (
@@ -84,7 +86,14 @@ export function SavedViews({ page, current, onApply }) {
               </button>
             </div>
           ))}
-          <button type="button" className="lk-view-save" onClick={saveCurrent}>+ Save current view</button>
+          {naming === null
+            ? <button type="button" className="lk-view-save" onClick={() => { setNaming(""); setError(""); }}>+ Save current view</button>
+            : <form className="lk-view-name" onSubmit={saveCurrent}>
+              <input autoFocus value={naming} maxLength={60} placeholder="Name this view" aria-label="View name"
+                onChange={(e) => setNaming(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") setNaming(null); }} />
+              <button type="submit" className="btn primary">Save</button>
+              <button type="button" className="btn ghost" onClick={() => { setNaming(null); setError(""); }}>Cancel</button>
+            </form>}
           {error && <p className="lk-error-text">{error}</p>}
         </div>
       )}

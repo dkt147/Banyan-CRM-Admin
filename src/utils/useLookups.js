@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
 
 // Option lists for selects (contacts, companies, deals, members, pipelines), cached for
@@ -30,24 +30,26 @@ export function useLookups(names) {
   const [state, setState] = useState(() =>
     Object.fromEntries(names.map((n) => [n, cache.get(n)?.rows || []])),
   );
+  // Names still waiting for their first answer (so a picker can say "Loading…" instead of "None").
+  const [pending, setPending] = useState(() => names.filter((n) => !cache.get(n)?.done));
   const key = names.join(",");
   useEffect(() => {
     let active = true;
     names.forEach((name) => {
       const hit = cache.get(name);
       if (hit && Date.now() - hit.at < TTL_MS) {
-        hit.promise.then((rows) => active && setState((s) => ({ ...s, [name]: rows })));
+        hit.promise.then((rows) => { if (active) { setState((s) => ({ ...s, [name]: rows })); setPending((p) => p.filter((x) => x !== name)); } });
         return;
       }
       const [path, query] = PATHS[name];
       const promise = request(path, { query }).then(unwrap).catch(() => []);
       const entry = { at: Date.now(), promise, rows: hit?.rows || [] };
       cache.set(name, entry);
-      promise.then((rows) => { entry.rows = rows; if (active) setState((s) => ({ ...s, [name]: rows })); });
+      promise.then((rows) => { entry.rows = rows; entry.done = true; if (active) { setState((s) => ({ ...s, [name]: rows })); setPending((p) => p.filter((x) => x !== name)); } });
     });
     return () => { active = false; };
   }, [key, request]);
-  return state;
+  return useMemo(() => ({ ...state, loading: pending }), [state, pending]);
 }
 
 export const personLabel = (c) =>

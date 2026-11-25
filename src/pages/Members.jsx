@@ -36,6 +36,7 @@ export default function Members() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [passwordFor, setPasswordFor] = useState(null);   // member getting a new password (admin)
+  const [statusFilter, setStatusFilter] = useState("active");   // active | inactive | all
 
   const [error, setError] = useState("");
   const [formErrors, setFormErrors] = useState({});
@@ -98,10 +99,9 @@ export default function Members() {
       setLoading(true);
       setError("");
 
+      // No status = everyone. Deactivated users are kept (never deleted), so show them on request.
       const response = await request("/members", {
-        query: {
-          status: "active",
-        },
+        query: statusFilter === "all" ? {} : { status: statusFilter },
       });
 
       setRows(response?.data || []);
@@ -114,7 +114,8 @@ export default function Members() {
 
   useEffect(() => {
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter]);
 
   /**
    * ---------------------------------------------------------
@@ -409,15 +410,27 @@ export default function Members() {
       title="Users"
       kicker="Staff who can sign in to the CRM"
       actions={
-        canManageMembers && (
-          <button
-            className="btn primary"
-            onClick={openCreateModal}
-            disabled={loading}
+        <>
+          <select
+            className="members-status"
+            aria-label="Show users"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
           >
-            Add user
-          </button>
-        )
+            <option value="active">Active users</option>
+            <option value="inactive">Inactive users</option>
+            <option value="all">All users</option>
+          </select>
+          {canManageMembers && (
+            <button
+              className="btn primary"
+              onClick={openCreateModal}
+              disabled={loading}
+            >
+              Add user
+            </button>
+          )}
+        </>
       }
     >
       {/* Global error */}
@@ -582,6 +595,8 @@ export default function Members() {
                 type="text"
                 value={form.name}
                 placeholder="e.g. John Doe"
+                autoComplete="off"
+                name="new-user-name"
                 disabled={saving}
                 onChange={(e) => updateField("name", e.target.value)}
               />
@@ -597,6 +612,8 @@ export default function Members() {
                 type="email"
                 value={form.email}
                 placeholder="john@example.com"
+                autoComplete="off"
+                name="new-user-email"
                 disabled={saving || mode === "edit"}
                 onChange={(e) => updateField("email", e.target.value)}
               />
@@ -613,6 +630,8 @@ export default function Members() {
                   type="password"
                   value={form.password}
                   placeholder="Minimum 8 characters"
+                  autoComplete="new-password"
+                  name="new-user-password"
                   disabled={saving}
                   onChange={(e) => updateField("password", e.target.value)}
                 />
@@ -648,6 +667,7 @@ export default function Members() {
                 type="text"
                 value={form.phone}
                 placeholder="+85200000001"
+                autoComplete="off"
                 disabled={saving}
                 onChange={(e) => updateField("phone", e.target.value)}
               />
@@ -663,6 +683,7 @@ export default function Members() {
                 type="text"
                 value={form.jobTitle}
                 placeholder="Operator"
+                autoComplete="off"
                 disabled={saving}
                 onChange={(e) => updateField("jobTitle", e.target.value)}
               />
