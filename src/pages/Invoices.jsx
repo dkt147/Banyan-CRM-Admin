@@ -5,6 +5,7 @@ import { Page, Empty } from "./Dashboard";
 import Badge from "../components/Badge";
 
 import Modal from "../components/Modal";
+import XeroInvoiceSync from "../components/XeroInvoiceSync";
 
 import { useAuth } from "../auth/AuthContext";
 import { fromHkInput, toHkInput } from "../utils/hkTime";
@@ -1017,7 +1018,8 @@ export default function Invoices() {
 
         <>
 
-          <button
+          <XeroInvoiceSync onDone={() => loadInvoices()} />
+          <button
 
             className="btn ghost"
 

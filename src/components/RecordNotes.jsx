@@ -98,13 +98,14 @@ export default function RecordNotes({ type, id, legacy, onChanged }) {
           : (
             <ul className="nt-list">
               {state.items.map((n) => {
-                const edited = n.updatedAt && n.createdAt && new Date(n.updatedAt) - new Date(n.createdAt) > 60000;
+                const edited = n.editedAt || (n.updatedAt && n.createdAt && new Date(n.updatedAt) - new Date(n.createdAt) > 60000);
+                const editor = n.editedBy?.name && n.editedBy.name !== (n.userId?.name || n.user?.name) ? n.editedBy.name : "";
                 const elsewhere = (type !== "deal" && n.dealId) ? (n.dealId.title ? `On deal: ${n.dealId.title}` : "On a deal") : "";
                 return (
                   <li key={n._id} className="nt-item">
                     <div className="nt-meta">
                       <b>{n.userId?.name || n.user?.name || "Someone"}</b>
-                      <time>{fmt(n.createdAt)}{edited ? " · edited" : ""}</time>
+                      <time>{fmt(n.createdAt)}{edited ? ` · edited${editor ? ` by ${editor}` : ""}` : ""}</time>
                       {elsewhere && <span className="nt-where">{elsewhere}</span>}
                     </div>
                     {editing?.id === n._id ? (

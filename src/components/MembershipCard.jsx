@@ -18,6 +18,7 @@ export const planName = (m) => (m?.planId && typeof m.planId === "object" ? m.pl
 export function useMemberships(type, id) {
   const { request } = useAuth();
   const [state, setState] = useState({ items: [], loading: true, error: "" });
+  const [version, setVersion] = useState(0);
   useEffect(() => {
     if (!id) return undefined;
     let alive = true;
@@ -25,17 +26,17 @@ export function useMemberships(type, id) {
       .then((r) => alive && setState({ items: r.data?.items || (Array.isArray(r.data) ? r.data : []), loading: false, error: "" }))
       .catch((e) => alive && setState({ items: [], loading: false, error: e.status === 403 ? "" : e.message || "Could not load memberships." }));
     return () => { alive = false; };
-  }, [request, type, id]);
-  return state;
+  }, [request, type, id, version]);
+  return { ...state, reload: () => setVersion((v) => v + 1) };
 }
 
-export default function MembershipCard({ state, forCompany = false }) {
+export default function MembershipCard({ state, forCompany = false, onAdd }) {
   const { items, loading, error } = state;
   const current = items.filter((m) => LIVE.includes(m.status));
   const past = items.filter((m) => !LIVE.includes(m.status));
   if (loading) return null;
   return (
-    <Card title={forCompany ? "Memberships" : "Membership"} actions={<Link className="av-link" to="/memberships">All memberships</Link>}>
+    <Card title={forCompany ? "Memberships" : "Membership"} actions={<>{onAdd && <button type="button" className="av-link" onClick={onAdd}>Add membership</button>}{onAdd && " · "}<Link className="av-link" to="/memberships">All memberships</Link></>}>
       {error && <p className="lk-warn-text">{error}</p>}
       {!current.length && <p className="lk-muted">{past.length ? `Not a member now. Last membership: ${planName(past[0])} (${STATUS[past[0].status] || past[0].status}${past[0].endAt ? `, ended ${day(past[0].endAt)}` : ""}).` : forCompany ? "No memberships for this company." : "Not a member."}</p>}
       {current.map((m) => (

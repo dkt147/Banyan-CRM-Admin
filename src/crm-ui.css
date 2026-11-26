@@ -716,3 +716,6 @@
 .pipeline-followup { border: 1px solid var(--line, #e5e7eb); border-radius: 10px; padding: 10px 12px; margin-top: 12px; display: grid; gap: 8px; }
 .pipeline-followup legend { padding: 0 6px; font-weight: 600; }
 @media (max-width: 640px) { .ev-search input { min-width: 0; flex: 1; } .ev-search { width: 100%; } }
+.xs-msg { font-size: 13px; color: var(--muted, #6b7280); align-self: center; max-width: 360px; }
+.ms-form .ms-span { grid-column: 1 / -1; }
+.ms-form textarea { width: 100%; }

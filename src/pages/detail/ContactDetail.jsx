@@ -15,6 +15,7 @@ import MembershipCard, { planName, useMemberships } from "../../components/Membe
 import { birthdayInput, formatBirthday, parseBirthday, turningAge } from "../../utils/birthday";
 import { useTagCatalogue } from "../../utils/contactTags";
 import WhatsAppSendModal from "../../components/WhatsAppSendModal";
+import MembershipModal from "../../components/MembershipModal";
 
 const isBirthdayToday = (b) => {
   const m = /(\d{2})-(\d{2})$/.exec(String(b || ""));
@@ -41,6 +42,7 @@ export default function ContactDetail() {
   const [newCompany, setNewCompany] = useState(false);
   const [newDeal, setNewDeal] = useState(false);
   const [whatsApp, setWhatsApp] = useState(false);
+  const [addMembership, setAddMembership] = useState(false);
   const memberships = useMemberships("contact", id);
   useTagCatalogue();
 
@@ -125,7 +127,7 @@ export default function ContactDetail() {
           ]}
         />
         <TagEditor tags={contact.tags || []} canEdit={canWrite} onChange={(tags) => save({ tags })} />
-        <MembershipCard state={memberships} />
+        <MembershipCard state={memberships} onAdd={canWrite && !contact.isArchived ? () => setAddMembership(true) : undefined} />
         <DayPassCard contact={contact} />
         <Card title="Record">
           <dl className="dl-fields">
@@ -139,6 +141,7 @@ export default function ContactDetail() {
         </Card>
       </>}
       {newDeal && <NewDealModal contact={contact} onClose={() => setNewDeal(false)} onCreated={(d) => { setNewDeal(false); navigate(recordHref.deal(d._id)); }} />}
+      {addMembership && <MembershipModal contact={contact} onClose={() => setAddMembership(false)} onCreated={() => { setAddMembership(false); memberships.reload(); load(); }} />}
       {whatsApp && <WhatsAppSendModal contact={contact} onClose={() => setWhatsApp(false)} />}
       {newCompany && <NewCompanyModal
         onClose={() => setNewCompany(false)}

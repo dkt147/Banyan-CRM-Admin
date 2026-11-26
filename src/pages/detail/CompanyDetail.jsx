@@ -9,6 +9,7 @@ import { invalidateLookups } from "../../utils/useLookups";
 import { CreditsCard, LoyaltyCard } from "../../components/CompanyCredits";
 import NewDealModal from "../../components/NewDealModal";
 import MembershipCard, { useMemberships } from "../../components/MembershipCard";
+import MembershipModal from "../../components/MembershipModal";
 
 const ADDRESS_KEYS = ["street", "city", "country", "postalCode"];
 const OPTIONAL = ["legalName", "industry", "website", "email", "phone", "notes"];
@@ -25,6 +26,7 @@ export default function CompanyDetail() {
   const [actionError, setActionError] = useState("");
   const [newDeal, setNewDeal] = useState(false);
   const memberships = useMemberships("company", id);
+  const [addMembership, setAddMembership] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -113,7 +115,8 @@ export default function CompanyDetail() {
                 </ul>
               )}
         </Card>
-        <MembershipCard state={memberships} forCompany />
+        <MembershipCard state={memberships} forCompany onAdd={canWrite ? () => setAddMembership(true) : undefined} />
+        {addMembership && <MembershipModal contact={null} company={company} onClose={() => setAddMembership(false)} onCreated={() => { setAddMembership(false); memberships.reload(); }} />}
         <CreditsCard companyId={id} allowance={company.meetingRoomCreditHours} onAllowanceSaved={(co) => co && setCompany(co)} />
         <LoyaltyCard companyId={id} />
         <Card title="Record">

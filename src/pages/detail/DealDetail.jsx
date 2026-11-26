@@ -8,6 +8,10 @@ import { recordHref } from "../../utils/recordLinks";
 import { invalidateLookups, personLabel, useLookups } from "../../utils/useLookups";
 import { fromHkInput } from "../../utils/hkTime";
 import NewCompanyModal from "../../components/NewCompanyModal";
+import MembershipModal from "../../components/MembershipModal";
+
+// Pipelines whose won deals are memberships: offer to add the membership straight away.
+const MEMBERSHIP_PIPELINES = ["membership", "private-office", "virtual-office"];
 import { sourceLabel } from "../../utils/sourceLabel";
 
 export const formatMoney = (value, currency = "HKD") => {
@@ -32,6 +36,8 @@ export default function DealDetail() {
   const [dealStages, setDealStages] = useState([]);   // stages of the deal's current pipeline (stage bar)
   const [stepping, setStepping] = useState("");       // stage id being moved to from the bar
   const [closing, setClosing] = useState(null);       // { status: "won"|"lost", paid, reason, busy, error }
+  const [wonMembership, setWonMembership] = useState(false);
+  const [membershipAdded, setMembershipAdded] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -75,6 +81,7 @@ export default function DealDetail() {
     setClosing({ ...closing, busy: true, error: "" });
     try {
       await patch(closing.status === "won" ? { status: "won", paymentReceivedConfirmed: true } : { status: "lost", lostReason: closing.reason.trim() });
+      if (closing.status === "won" && MEMBERSHIP_PIPELINES.includes(deal?.pipelineId?.key) && deal?.contactId) setWonMembership(true);
       setClosing(null);
     } catch (err) { setClosing((c) => ({ ...c, busy: false, error: err.message })); }
   }
@@ -163,7 +170,10 @@ export default function DealDetail() {
                 <button type="button" className="btn ghost" onClick={() => setClosing({ status: "lost", paid: false, reason: deal.lostReason || "", busy: false, error: "" })}>Mark lost</button>
               </>}
               {canWrite && deal.status !== "open" && <>
-                <span className="lk-muted">Deal {deal.status === "won" ? "won" : "lost"}{deal.status === "lost" && deal.lostReason ? `: ${deal.lostReason}` : ""}.</span>
+                <span className="lk-muted">Deal {deal.status === "won" ? "won" : "lost"}{deal.status === "lost" && deal.lostReason ? `: ${deal.lostReason}` : ""}.{membershipAdded ? " Membership added." : ""}</span>
+                {deal.status === "won" && !membershipAdded && MEMBERSHIP_PIPELINES.includes(deal.pipelineId?.key) && contact && (
+                  <button type="button" className="btn ghost" onClick={() => setWonMembership(true)}>Add membership</button>
+                )}
                 <button type="button" className="btn ghost" onClick={reopen}>Reopen</button>
               </>}
             </div>
@@ -182,6 +192,11 @@ export default function DealDetail() {
           </section>
         );
       })()}
+      {wonMembership && contact && (
+        <MembershipModal contact={contact} company={company} deal={deal}
+          onClose={() => setWonMembership(false)}
+          onCreated={() => { setWonMembership(false); setMembershipAdded(true); }} />
+      )}
       {deal && <>
         <Card title="People">
           <dl className="dl-fields">
