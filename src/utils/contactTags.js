@@ -1,13 +1,20 @@
+import { useSyncExternalStore } from "react";
+
 // One list of contact tags for every screen (contact page, contacts list filters, bulk
 // tagging, new-contact form). Two kinds:
 //  - Segments: set by staff to describe the relationship. Used for filtering, saved views,
 //    reports and (later) automation and newsletter audiences.
 //  - Sources: added automatically by the CRM when a contact arrives through a channel.
 //    Staff can remove them, but normally leave them as a record of where the lead came from.
-// Matches the backend catalogue (GET /contacts/tag-catalogue). Tags must match
-// ^[a-z0-9_]{1,50}$, at most 30 per contact; the server normalises "Active Member" → active_member.
+// Tags must match ^[a-z0-9_]{1,50}$, at most 30 per contact; the server normalises
+// "Active Member" → active_member.
+//
+// Since 26 Nov the team edits the list in Settings → Contact tags (GET /contact-tags).
+// The built-in list below is used until that list has loaded, or if the server is older.
+// A tag's key never changes (contacts store the key); only its label, description and
+// group do. Archived tags keep their label on contacts but leave the pickers.
 
-export const TAG_GROUPS = [
+const BUILT_IN = [
   {
     key: "segment",
     label: "Segments (set by staff)",
@@ -38,11 +45,43 @@ export const TAG_GROUPS = [
   },
 ];
 
-const ALL = TAG_GROUPS.flatMap((g) => g.tags.map(([key, label, description]) => ({ key, label, description, group: g.key })));
-const BY_KEY = new Map(ALL.map((t) => [t.key, t]));
+export const GROUP_LABELS = { segment: "Segments (set by staff)", source: "Sources (added automatically)" };
 
-export const SEGMENT_TAGS = TAG_GROUPS[0].tags.map(([k]) => k);
-export const KNOWN_TAGS = ALL.map((t) => t.key);
+// Mutable on purpose: the arrays are refilled in place when the team's list loads, so
+// existing imports (TAG_GROUPS, SEGMENT_TAGS, KNOWN_TAGS) stay valid.
+export const TAG_GROUPS = [];
+export const SEGMENT_TAGS = [];
+export const KNOWN_TAGS = [];
+const BY_KEY = new Map();
+
+function rebuild(list) {
+  // list: [{ key, label, description, group, isActive }]
+  const groups = new Map(Object.keys(GROUP_LABELS).map((g) => [g, []]));
+  BY_KEY.clear();
+  for (const t of list) {
+    const group = t.group === "source" ? "source" : "segment";
+    BY_KEY.set(t.key, { key: t.key, label: t.label || t.key, description: t.description || "", group, isActive: t.isActive !== false });
+    if (t.isActive !== false) groups.get(group).push([t.key, t.label || t.key, t.description || ""]);
+  }
+  TAG_GROUPS.splice(0, TAG_GROUPS.length, ...[...groups].map(([key, tags]) => ({ key, label: GROUP_LABELS[key], tags })));
+  SEGMENT_TAGS.splice(0, SEGMENT_TAGS.length, ...groups.get("segment").map(([k]) => k));
+  KNOWN_TAGS.splice(0, KNOWN_TAGS.length, ...[...BY_KEY.values()].filter((t) => t.isActive).map((t) => t.key));
+}
+rebuild(BUILT_IN.flatMap((g) => g.tags.map(([key, label, description]) => ({ key, label, description, group: g.key }))));
+
+let version = 0;
+const listeners = new Set();
+/** Replace the catalogue with the team's list (Settings → Contact tags). */
+export function applyTagCatalogue(list) {
+  if (!Array.isArray(list) || !list.length) return;
+  rebuild(list.filter((t) => t && t.key));
+  version += 1;
+  listeners.forEach((fn) => fn());
+}
+/** Re-render when the team's tag list loads or changes. */
+export function useTagCatalogue() {
+  return useSyncExternalStore((fn) => { listeners.add(fn); return () => listeners.delete(fn); }, () => version);
+}
 
 /** "website_enquiry" -> "Website enquiry"; unknown tags are title-cased. */
 export const tagLabel = (t) => BY_KEY.get(t)?.label || String(t).replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -50,7 +89,8 @@ export const tagInfo = (t) => BY_KEY.get(t) || { key: t, label: tagLabel(t), des
 
 /** Grouped options for selects; tags seen in the data but not in the list go under "Other". */
 export function tagOptionGroups(extraTags = []) {
-  const others = [...new Set(extraTags)].filter((t) => t && !BY_KEY.has(t)).sort();
+  const active = new Set(KNOWN_TAGS);
+  const others = [...new Set(extraTags)].filter((t) => t && !active.has(t)).sort();
   const groups = TAG_GROUPS.map((g) => ({ key: g.key, label: g.label, tags: g.tags.map(([k]) => k) }));
   if (others.length) groups.push({ key: "other", label: "Other tags in use", tags: others });
   return groups;
@@ -58,3 +98,10 @@ export function tagOptionGroups(extraTags = []) {
 
 /** Normalise free text into a tag key: "Corporate Client" -> "corporate_client". */
 export const toTagKey = (text) => String(text || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 50);
+
+/** Load the team's tag list (GET /contact-tags). Older servers without it keep the built-in list. */
+export function loadTagCatalogue(request) {
+  return request("/contact-tags", { query: { includeInactive: true } })
+    .then((r) => { const list = r.data?.items || r.data || []; applyTagCatalogue(list); return list; })
+    .catch((e) => { if (e?.status !== 404) console.warn("[tags]", e?.message); return null; });
+}

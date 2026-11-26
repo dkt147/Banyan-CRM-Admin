@@ -10,6 +10,7 @@ const SECTIONS = [
   ["/integrations", "PlugsConnected", "Integrations", "Google, Gmail, WhatsApp, Stripe, Xero, DocuSign"],
   ["/templates", "EnvelopeOpen", "Email and WhatsApp templates", "Reusable messages with merge fields"],
   ["/pipelines", "Kanban", "Pipelines and stages", "Stages, probabilities and the deal board"],
+  ["/settings/tags", "Tag", "Contact tags", "Add, rename and archive the tags used on contacts"],
   ["/audit-logs", "ListChecks", "Audit log", "Administrative history"],
   ["/notifications", "Bell", "Notifications", "Workspace alerts"],
 ];

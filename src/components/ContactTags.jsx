@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../auth/AuthContext";
-import { TAG_GROUPS, tagInfo, tagLabel, tagOptionGroups, toTagKey } from "../utils/contactTags";
+import { TAG_GROUPS, tagInfo, tagLabel, tagOptionGroups, toTagKey, useTagCatalogue } from "../utils/contactTags";
 
 /** <select> options for tags, grouped as Segments / Sources / Other. counts: { key: n } adds "(n)". */
 export function TagOptions({ extraTags = [], exclude = [], counts }) {
+  useTagCatalogue();
   return tagOptionGroups(extraTags).map((g) => (
     <optgroup key={g.key} label={g.label}>
       {g.tags.filter((t) => !exclude.includes(t)).map((t) => <option key={t} value={t}>{tagLabel(t)}{counts ? ` (${counts[t] || 0})` : ""}</option>)}
@@ -27,10 +28,11 @@ export function useTagCounts(refreshKey) {
 
 /** Small expandable explanation of every tag and how tags are used. */
 export function TagGuide() {
+  useTagCatalogue();
   return (
     <details className="tag-guide">
       <summary>What do the tags mean?</summary>
-      <p>Tags group contacts so you can filter the list, save views and (later) pick automation and newsletter audiences. A contact can have several tags.</p>
+      <p>Tags group contacts so you can filter the list, save views and (later) pick automation and newsletter audiences. A contact can have several tags. Admins can add and rename tags in <b>Settings → Contact tags</b>.</p>
       {TAG_GROUPS.map((g) => (
         <div key={g.key}>
           <h4>{g.label}</h4>
@@ -48,6 +50,7 @@ export function TagGuide() {
  * onChange(tags) (PATCH /contacts/:id { tags }), so other tags are never lost.
  */
 export function TagEditor({ tags = [], canEdit, onChange }) {
+  useTagCatalogue();
   const [adding, setAdding] = useState("");
   const [custom, setCustom] = useState("");
   const [saving, setSaving] = useState(false);

@@ -11,6 +11,16 @@ import { TagEditor } from "../../components/ContactTags";
 import NewCompanyModal from "../../components/NewCompanyModal";
 import NewDealModal from "../../components/NewDealModal";
 import { DayPassCard } from "../../components/DayPassCredits";
+import MembershipCard, { planName, useMemberships } from "../../components/MembershipCard";
+import { birthdayInput, formatBirthday, parseBirthday, turningAge } from "../../utils/birthday";
+import { useTagCatalogue } from "../../utils/contactTags";
+
+const isBirthdayToday = (b) => {
+  const m = /(\d{2})-(\d{2})$/.exec(String(b || ""));
+  if (!m) return false;
+  const hk = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Hong_Kong" }); // YYYY-MM-DD
+  return hk.slice(5) === `${m[1]}-${m[2]}`;
+};
 
 // Kept for older imports; the single tag list lives in utils/contactTags.js.
 export const CONTACT_TAGS = SEGMENT_TAGS;
@@ -29,6 +39,8 @@ export default function ContactDetail() {
   const [actionError, setActionError] = useState("");
   const [newCompany, setNewCompany] = useState(false);
   const [newDeal, setNewDeal] = useState(false);
+  const memberships = useMemberships("contact", id);
+  useTagCatalogue();
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -40,6 +52,7 @@ export default function ContactDetail() {
 
   async function save(changed) {
     const body = { ...changed };
+    if ("birthday" in body) body.birthday = parseBirthday(body.birthday);   // throws a readable error
     if ("companyId" in body && !body.companyId) body.companyId = null;
     // The API accepts null (not "") to clear optional fields.
     for (const key of ["email", "phone", "whatsapp", "jobTitle", "source", "notes"])
@@ -62,14 +75,18 @@ export default function ContactDetail() {
 
   const name = contact ? [contact.firstName, contact.lastName].filter(Boolean).join(" ") : "";
   const company = contact?.companyId && typeof contact.companyId === "object" ? contact.companyId : null;
+  const liveMembership = memberships.items.find((m) => m.status === "active" || m.status === "trial");
 
   return (
     <DetailLayout
       type="contact" id={id} listPath="/contact" listLabel="Contacts"
       title={name} subtitle={[contact?.jobTitle, company?.name].filter(Boolean).join(" · ") || "Contact"}
       loading={loading} error={error} onRetry={load}
+      legacyNotes={contact ? { text: contact.notes || "", save: (text) => save({ notes: text }) } : undefined}
       badges={contact && <>
         {(contact.tags || []).map((t) => <Badge key={t}>{tagLabel(t)}</Badge>)}
+        {liveMembership && <Badge tone="success">Member · {planName(liveMembership)}{liveMembership.status === "trial" ? " (trial)" : ""}</Badge>}
+        {isBirthdayToday(contact.birthday) && <Badge tone="info">Birthday today{turningAge(contact.birthday) ? ` (${turningAge(contact.birthday)})` : ""}</Badge>}
         {contact.isArchived && <Badge tone="warn">Archived</Badge>}
       </>}
       actions={canWrite && contact && <>
@@ -98,10 +115,14 @@ export default function ContactDetail() {
             },
             { key: "source", label: "Source / referral", value: contact.source },
             { key: "language", label: "Language", type: "select", value: contact.language || "en", options: LANGUAGES, display: (LANGUAGES.find(([v]) => v === contact.language) || [])[1] || contact.language },
-            { key: "notes", label: "Notes", type: "textarea", value: contact.notes, span: true },
+            {
+              key: "birthday", label: "Birthday", value: birthdayInput(contact.birthday), placeholder: "14/03 or 14/03/1990",
+              display: contact.birthday ? `${formatBirthday(contact.birthday)}${turningAge(contact.birthday) ? ` · turns ${turningAge(contact.birthday)}` : ""}` : "—",
+            },
           ]}
         />
         <TagEditor tags={contact.tags || []} canEdit={canWrite} onChange={(tags) => save({ tags })} />
+        <MembershipCard state={memberships} />
         <DayPassCard contact={contact} />
         <Card title="Record">
           <dl className="dl-fields">

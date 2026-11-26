@@ -8,7 +8,7 @@ import { useAuth } from "../auth/AuthContext";
 import { usePermissions } from "../utils/permissions";
 import { recordHref } from "../utils/recordLinks";
 import { invalidateLookups, useLookups } from "../utils/useLookups";
-import { tagInfo, tagLabel } from "../utils/contactTags";
+import { tagInfo, tagLabel, useTagCatalogue } from "../utils/contactTags";
 import { TagGuide, TagOptions, useTagCounts } from "../components/ContactTags";
 import DateRangeFilter, { dateRangeQuery } from "../components/DateRangeFilter";
 
@@ -18,6 +18,7 @@ const blankForm = { firstName: "", lastName: "", email: "", phone: "", whatsapp:
 const fmtShort = (v) => (v ? new Date(v).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "");
 
 export default function Contacts() {
+  useTagCatalogue();
   const { request, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();

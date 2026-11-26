@@ -8,6 +8,7 @@ import AssistantPanel from "./AssistantPanel";
 import GlobalSearch from "./GlobalSearch";
 import { roleLabel, usePermissions } from "../utils/permissions";
 import PasswordModal from "./PasswordModal";
+import { loadTagCatalogue } from "../utils/contactTags";
 
 // Main navigation in the order of the brief (6.7). `match` lists the route prefixes that
 // highlight the item (e.g. both /calendar and /bookings for Bookings and Calendar).
@@ -126,6 +127,9 @@ export default function AppShell({ children }) {
       })
       .catch(() => {});
   }, [request]);
+
+  // The team's contact tags (Settings → Contact tags), so every screen shows their labels.
+  React.useEffect(() => { loadTagCatalogue(request); }, [request]);
 
   React.useEffect(() => {
     request("/tasks/summary")

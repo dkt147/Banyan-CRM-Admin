@@ -8,6 +8,7 @@ import { recordHref } from "../../utils/recordLinks";
 import { invalidateLookups } from "../../utils/useLookups";
 import { CreditsCard, LoyaltyCard } from "../../components/CompanyCredits";
 import NewDealModal from "../../components/NewDealModal";
+import MembershipCard, { useMemberships } from "../../components/MembershipCard";
 
 const ADDRESS_KEYS = ["street", "city", "country", "postalCode"];
 const OPTIONAL = ["legalName", "industry", "website", "email", "phone", "notes"];
@@ -23,6 +24,7 @@ export default function CompanyDetail() {
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
   const [newDeal, setNewDeal] = useState(false);
+  const memberships = useMemberships("company", id);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -67,6 +69,7 @@ export default function CompanyDetail() {
       type="company" id={id} listPath="/companies" listLabel="Companies"
       title={company?.name} subtitle={company?.industry || "Company"}
       loading={loading} error={error} onRetry={load}
+      legacyNotes={company ? { text: company.notes || "", save: (text) => save({ notes: text }) } : undefined}
       badges={company && <>{(company.tags || []).map((t) => <Badge key={t}>{t}</Badge>)}{company.isArchived && <Badge tone="warn">Archived</Badge>}</>}
       actions={canWrite && company && <>
         {!company.isArchived && <button type="button" className="btn primary" onClick={() => setNewDeal(true)}>New deal</button>}
@@ -92,7 +95,6 @@ export default function CompanyDetail() {
             { key: "country", label: "Country", value: company.address?.country },
             { key: "postalCode", label: "Postal code", value: company.address?.postalCode },
             { key: "tags", label: "Tags (comma separated)", value: (company.tags || []).join(", ") },
-            { key: "notes", label: "Notes", type: "textarea", value: company.notes, span: true },
           ]}
         />
         <Card title={`Contacts${contacts.total ? ` (${contacts.total})` : ""}`}>
@@ -111,6 +113,7 @@ export default function CompanyDetail() {
                 </ul>
               )}
         </Card>
+        <MembershipCard state={memberships} forCompany />
         <CreditsCard companyId={id} allowance={company.meetingRoomCreditHours} onAllowanceSaved={(co) => co && setCompany(co)} />
         <LoyaltyCard companyId={id} />
         <Card title="Record">

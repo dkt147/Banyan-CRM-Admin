@@ -632,3 +632,68 @@
 
 /* Users: Active / Inactive / All */
 .members-status { min-height: 40px; }
+
+/* ---------- Record pages: tabs in the wide column (26 Nov) ---------- */
+.dl-grid-tabs { grid-template-columns: minmax(300px, 0.85fr) minmax(0, 1.4fr); }
+.dl-side-tabs { position: sticky; top: 16px; }
+@media (max-width: 1100px) { .dl-grid-tabs { grid-template-columns: minmax(0, 1fr); } .dl-side-tabs { position: static; } }
+.rt { padding-top: 8px; }
+.rt-tabs { display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--border-default); margin: 0 -4px 12px; padding: 0 4px; scrollbar-width: thin; }
+.rt-tabs button { display: inline-flex; align-items: center; gap: 6px; flex: none; min-height: 44px; padding: 8px 12px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--color-text-secondary); font: inherit; font-size: var(--text-14); cursor: pointer; }
+.rt-tabs button:hover { color: var(--color-text); }
+.rt-tabs button.active { color: var(--color-text); border-bottom-color: var(--color-primary); font-weight: var(--fw-semibold); }
+.rt-tabs button:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.rt-panel { min-height: 160px; }
+.rt-hint { margin-top: 12px; }
+.rt-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.rt-filters button { border: 1px solid var(--border-default); background: var(--surface-card); border-radius: var(--radius-pill); padding: 4px 12px; min-height: 32px; font: inherit; font-size: var(--text-14); color: var(--color-text-secondary); cursor: pointer; }
+.rt-filters button.active { background: var(--color-primary-bg); border-color: var(--color-primary); color: var(--color-text); }
+
+/* Detailed timeline */
+.tl-changes { list-style: none; margin: 4px 0; padding: 0; font-size: var(--text-14); }
+.tl-changes li { padding: 0; display: block; }
+.tl-changes li::before { display: none; }
+.tl-changes span { color: var(--color-text-secondary); }
+.tl-changes s { color: var(--color-text-secondary); }
+.tl-changes b { display: inline; font-weight: var(--fw-semibold); }
+.tl-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.tl-note .tl-dot { background: var(--color-primary); }
+
+/* Notes */
+.nt-new { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.nt-new textarea, .nt-edit textarea { width: 100%; resize: vertical; }
+.nt-new-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.nt-new-actions small { margin-right: auto; }
+.nt-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.nt-item { border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: 10px 12px; background: var(--surface-card); }
+.nt-legacy { background: var(--surface-muted); }
+.nt-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: var(--text-14); }
+.nt-meta time, .nt-where { color: var(--color-text-secondary); font-size: var(--text-12); }
+.nt-body { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-14); }
+.nt-actions { display: flex; gap: 12px; margin-top: 6px; }
+.nt-edit { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+
+/* Invoices tab */
+.inv-due { margin: 0 0 8px; font-size: var(--text-14); }
+.inv-st-overdue { color: var(--red-800); font-weight: var(--fw-semibold); }
+.inv-st-paid { color: var(--forest-900); }
+
+/* Membership card */
+.ms-row + .ms-row { border-top: 1px solid var(--border-default); margin-top: 12px; padding-top: 12px; }
+.ms-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.ms-status { font-size: var(--text-12); padding: 2px 8px; border-radius: var(--radius-pill); background: var(--grey-100); }
+.ms-active { background: var(--color-success-bg-strong); }
+.ms-trial { background: var(--color-info-bg); }
+.ms-paused { background: var(--color-warning-bg-strong); }
+
+/* Dashboard birthdays */
+.bd-panel { margin-bottom: 24px; }
+.bd-sub { font-size: var(--text-14); margin: 12px 0 4px; color: var(--color-text-secondary); font-weight: var(--fw-semibold); }
+.bd-hint { margin-top: 8px; }
+
+/* Settings → Contact tags */
+.ts-group { margin-bottom: 20px; padding: 16px; }
+.ts-title { font-size: var(--text-16); margin: 0 0 8px; }
+.ts-archived { margin: 0 0 12px; }
+.ts-actions { white-space: nowrap; }
+.ts-group tr.is-inactive td { color: var(--color-text-secondary); }

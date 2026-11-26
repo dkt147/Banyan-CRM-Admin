@@ -37,6 +37,7 @@ import BookingDetail from "./pages/detail/BookingDetail";
 import Forms from "./pages/Forms";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import TagSettings from "./pages/TagSettings";
 
 function CRMRoutes() {
   return (
@@ -66,6 +67,7 @@ function CRMRoutes() {
           <Route path="/forms" element={<Forms />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/settings/tags" element={<TagSettings />} />
           <Route path="/agreements" element={<Agreements />} />
           <Route path="/invoices" element={<Invoices />} />
           <Route path="/members" element={<Members />} />

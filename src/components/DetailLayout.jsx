@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Icon from "./Icon";
 import RelatedRecords, { ActivityTimeline, useRelated } from "./RelatedRecords";
+import RecordTabs from "./RecordTabs";
 import { DataState } from "./ListKit";
 import { toHkInput } from "../utils/hkTime";
 
@@ -9,9 +10,15 @@ import { toHkInput } from "../utils/hkTime";
  * Two-column record page (brief 6.7): details on the left, timeline and related records
  * on the right. Back returns to the previous page when there is one (brief 6.1).
  */
-export function DetailLayout({ type, id, listPath, listLabel, title, subtitle, badges, actions, loading, error, onRetry, children, showLinks = false }) {
+// Contacts, companies and deals show activity, notes, emails, invoices… as tabs in a wide
+// column (client feedback 26 Nov). Tasks and bookings keep the timeline on the right.
+const TABBED = new Set(["contact", "company", "deal"]);
+
+export function DetailLayout({ type, id, listPath, listLabel, title, subtitle, badges, actions, loading, error, onRetry, children, showLinks = false, legacyNotes, relatedRef }) {
   const navigate = useNavigate();
   const related = useRelated(type, id);
+  if (relatedRef) relatedRef.current = related;
+  const tabbed = TABBED.has(type);
   const goBack = () => {
     // history.state.idx is set by React Router; 0 means this page was opened directly.
     if ((window.history.state?.idx ?? 0) > 0) navigate(-1);
@@ -38,6 +45,14 @@ export function DetailLayout({ type, id, listPath, listLabel, title, subtitle, b
           </div>
           {actions && <div className="dl-actions">{actions}</div>}
         </div>
+        {tabbed ? (
+          <div className="dl-grid dl-grid-tabs">
+            <div className="dl-main">{children}</div>
+            <div className="dl-side dl-side-tabs">
+              <RecordTabs type={type} id={id} related={related} legacyNotes={legacyNotes} showLinks={showLinks} />
+            </div>
+          </div>
+        ) : (
         <div className="dl-grid">
           <div className="dl-main">{children}</div>
           <aside className="dl-side">
@@ -48,6 +63,7 @@ export function DetailLayout({ type, id, listPath, listLabel, title, subtitle, b
             </section>
           </aside>
         </div>
+        )}
       </DataState>
     </div>
   );
@@ -121,7 +137,7 @@ export function FieldGrid({ title = "Details", fields, onSave, canEdit = true })
                 ) : f.type === "textarea" ? (
                   <textarea rows={4} value={values[f.key] ?? ""} onChange={(e) => setValues({ ...values, [f.key]: e.target.value })} />
                 ) : (
-                  <input type={f.type || "text"} value={values[f.key] ?? ""} onChange={(e) => setValues({ ...values, [f.key]: e.target.value })} />
+                  <input type={f.type || "text"} value={values[f.key] ?? ""} placeholder={f.placeholder} onChange={(e) => setValues({ ...values, [f.key]: e.target.value })} />
                 )
               ) : (
                 f.display ?? (f.value === null || f.value === undefined || f.value === "" ? "—" : String(f.value))

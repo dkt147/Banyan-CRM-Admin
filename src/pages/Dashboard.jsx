@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Icon from "../components/Icon";
 import { useAuth } from "../auth/AuthContext";
 import { longDate } from "../utils/dates";
+import BirthdaysPanel from "../components/BirthdaysPanel";
 
 const TAB_OPTIONS = ["Overview", "Occupancy", "Revenue", "Sources"];
 const SOURCE_COLORS = ["#0a7d5a", "#2f9e78", "#d97706", "#a7dcc6", "#8a919c"];
@@ -645,6 +646,7 @@ export default function Dashboard() {
 
       {activeTab === "Overview" && (
         <>
+          <BirthdaysPanel />
           <div className="dashboard-section-heading">
             <h2>Pipeline value by stage</h2>
             <span>Four motions running in parallel</span>

@@ -77,7 +77,49 @@ export function useRelated(type, id) {
   return { ...state, reload: () => setVersion((v) => v + 1) };
 }
 
-/** Activity timeline (right column of detail pages). */
+// Field names the server may send in "changed" when it doesn't send before/after values yet.
+const FIELD_LABELS = {
+  stageId: "Stage", pipelineId: "Pipeline", status: "Status", value: "Value", title: "Title", ownerId: "Owner",
+  contactId: "Contact", companyId: "Company", expectedCloseDate: "Expected close", productType: "Product",
+  source: "Source", description: "Description", lostReason: "Lost reason", paymentReceivedConfirmed: "Payment received",
+  firstName: "First name", lastName: "Last name", email: "Email", phone: "Phone", whatsapp: "WhatsApp", tags: "Tags",
+  jobTitle: "Job title", language: "Language", birthday: "Birthday", name: "Name", website: "Website", industry: "Industry",
+  dueAt: "Due", priority: "Priority", assignedTo: "Assigned to",
+};
+const fieldLabel = (f) => FIELD_LABELS[f] || String(f).replace(/Id$/, "").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^\w/, (c) => c.toUpperCase());
+const showValue = (v) => (v === null || v === undefined || v === "" ? "empty" : Array.isArray(v) ? v.join(", ") || "none" : typeof v === "boolean" ? (v ? "Yes" : "No") : String(v));
+
+export const isNoteItem = (item) => item?.type === "note";
+export const isChangeItem = (item) => /(_updated|_changed|stage|status)/.test(String(item?.type || "")) || Boolean(item?.changes?.length || item?.changed?.length);
+
+/** One timeline entry: what happened, who did it, and (for edits) each field's old → new value. */
+export function TimelineItem({ item }) {
+  const who = item.user?.name || item.userName;
+  const changes = Array.isArray(item.changes) ? item.changes : [];
+  const changedOnly = !changes.length && Array.isArray(item.changed) ? item.changed.filter((f) => f !== "updatedAt") : [];
+  return (
+    <li className={isNoteItem(item) ? "tl-note" : ""}>
+      <span className="tl-dot" />
+      <div>
+        <b>{item.title}</b>
+        {changes.length > 0 && (
+          <ul className="tl-changes">
+            {changes.map((c, i) => (
+              <li key={`${c.field}-${i}`}>
+                <span>{c.label || fieldLabel(c.field)}:</span> <s>{showValue(c.from)}</s> → <b>{showValue(c.to)}</b>
+              </li>
+            ))}
+          </ul>
+        )}
+        {changedOnly.length > 0 && <p>Changed: {changedOnly.map(fieldLabel).join(", ")}</p>}
+        {isNoteItem(item) && item.body ? <p className="tl-body">{item.body}</p> : item.subtitle && <p>{item.subtitle}</p>}
+        <time>{fmtDate(item.date)}{who ? ` · by ${who}` : ""}</time>
+      </div>
+    </li>
+  );
+}
+
+/** Activity timeline (right column of task and booking pages). */
 export function ActivityTimeline({ related }) {
   const { data, loading, error } = related;
   const items = data?.sections?.activities?.items || [];
@@ -87,21 +129,34 @@ export function ActivityTimeline({ related }) {
       {error ? <p className="rr-empty rr-error">{error}</p>
         : loading && !data ? <p className="rr-empty">Loading timeline…</p>
           : items.length === 0 ? <p className="rr-empty">No activity yet.</p>
-            : (
-              <ol className="tl">
-                {items.map((item) => (
-                  <li key={item.id}>
-                    <span className="tl-dot" />
-                    <div>
-                      <b>{item.title}</b>
-                      {item.subtitle && <p>{item.subtitle}</p>}
-                      <time>{fmtDate(item.date)}</time>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            )}
+            : <ol className="tl">{items.map((item) => <TimelineItem key={item.id} item={item} />)}</ol>}
     </section>
+  );
+}
+
+/** The list for one related section (bookings, deals, tasks, emails, whatsapp, files). */
+export function RelatedSection({ tab, related }) {
+  const { data, loading, error } = related;
+  const current = data?.sections?.[tab] || { total: 0, items: [] };
+  const label = (SECTIONS.find(([k]) => k === tab) || [tab, tab])[1].toLowerCase();
+  if (error) return <p className="rr-empty rr-error">{error}</p>;
+  if (loading && !data) return <p className="rr-empty">Loading…</p>;
+  if (!current.items.length) return <p className="rr-empty">No {label} linked yet.</p>;
+  return (
+    <ul className="rr-list">
+      {current.items.map((item) => {
+        const href = itemHref(tab, item);
+        return (
+          <li key={item.id}>
+            {href ? <Link to={href} className="rr-item"><ItemBody item={item} /></Link>
+              : tab === "files" && item.url ? <a href={item.url} target="_blank" rel="noopener noreferrer" className="rr-item"><ItemBody item={item} /></a>
+                : tab === "files" ? <Link to="/documents" className="rr-item"><ItemBody item={item} /></Link>
+                  : <div className="rr-item rr-item-static"><ItemBody item={item} /></div>}
+          </li>
+        );
+      })}
+      {current.total > current.items.length && <li className="rr-more">Showing {current.items.length} of {current.total}</li>}
+    </ul>
   );
 }
 
