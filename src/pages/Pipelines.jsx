@@ -21,6 +21,11 @@ const blankStage = {
   isClosedWon: false,
   isClosedLost: false,
   isActive: true,
+  // Follow-up task when a deal enters this stage (27 Nov: off by default, now that
+  // "What's next?" asks for the next task; on for "Quote sent").
+  followUpEnabled: false,
+  followUpDays: 1,
+  followUpTitle: "",
 };
 
 const blankDeal = {
@@ -727,6 +732,9 @@ export default function Pipelines() {
       isClosedWon: !!stage.isClosedWon,
       isClosedLost: !!stage.isClosedLost,
       isActive: stage.isActive !== false,
+      followUpEnabled: !!stage.followUp?.enabled,
+      followUpDays: Number(stage.followUp?.dueInDays ?? 1),
+      followUpTitle: stage.followUp?.title || "",
     });
 
     setStageModal({
@@ -750,6 +758,12 @@ export default function Pipelines() {
       return;
     }
 
+    const followUpDays = Number(stageForm.followUpDays);
+    if (stageForm.followUpEnabled && (!Number.isInteger(followUpDays) || followUpDays < 0 || followUpDays > 60)) {
+      setError("The follow-up task must be due 0 to 60 days after the move.");
+      return;
+    }
+
     if (stageForm.isClosedWon && stageForm.isClosedLost) {
       setError("A stage cannot be both Closed Won and Closed Lost.");
       return;
@@ -767,6 +781,11 @@ export default function Pipelines() {
         isClosedWon: !!stageForm.isClosedWon,
         isClosedLost: !!stageForm.isClosedLost,
         isActive: !!stageForm.isActive,
+        followUp: {
+          enabled: !!stageForm.followUpEnabled,
+          dueInDays: stageForm.followUpEnabled ? followUpDays : Number(stageForm.followUpDays) || 1,
+          title: String(stageForm.followUpTitle || "").trim(),
+        },
       };
 
       if (stageModal?.mode === "edit") {
@@ -1101,6 +1120,12 @@ export default function Pipelines() {
                         <span className="pipeline-stage-probability">
                           {stage.probability ?? 0}% probability
                         </span>
+
+                        {stage.followUp?.enabled && (
+                          <span className="pipeline-stage-probability" title="A follow-up task is created when a deal moves here">
+                            Task in {stage.followUp.dueInDays ?? 1} d
+                          </span>
+                        )}
 
                         <span
                           className={`pipeline-stage-status ${status.className}`}
@@ -1523,6 +1548,48 @@ export default function Pipelines() {
             />
             Active
           </label>
+
+          <fieldset className="pipeline-followup">
+            <legend>Follow-up task</legend>
+            <label className="pipeline-checkbox">
+              <input
+                type="checkbox"
+                checked={!!stageForm.followUpEnabled}
+                onChange={(event) =>
+                  setStageForm((current) => ({ ...current, followUpEnabled: event.target.checked }))
+                }
+              />
+              Create a follow-up task when a deal moves into this stage
+            </label>
+            {stageForm.followUpEnabled && (
+              <div className="pipeline-modal-grid">
+                <label>
+                  Due after (days)
+                  <input
+                    type="number"
+                    min="0"
+                    max="60"
+                    value={stageForm.followUpDays}
+                    onChange={(event) =>
+                      setStageForm((current) => ({ ...current, followUpDays: event.target.value }))
+                    }
+                  />
+                </label>
+                <label>
+                  Task title (optional)
+                  <input
+                    value={stageForm.followUpTitle}
+                    placeholder={`Follow up: <deal> — ${stageForm.name || "stage"}`}
+                    maxLength={150}
+                    onChange={(event) =>
+                      setStageForm((current) => ({ ...current, followUpTitle: event.target.value }))
+                    }
+                  />
+                </label>
+              </div>
+            )}
+            <p className="muted">The task goes to the deal owner. Staff are also asked "What's next?" after each move, so most stages don't need one.</p>
+          </fieldset>
         </Modal>
       )}
 

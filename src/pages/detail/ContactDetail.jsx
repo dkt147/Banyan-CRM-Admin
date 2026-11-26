@@ -14,6 +14,7 @@ import { DayPassCard } from "../../components/DayPassCredits";
 import MembershipCard, { planName, useMemberships } from "../../components/MembershipCard";
 import { birthdayInput, formatBirthday, parseBirthday, turningAge } from "../../utils/birthday";
 import { useTagCatalogue } from "../../utils/contactTags";
+import WhatsAppSendModal from "../../components/WhatsAppSendModal";
 
 const isBirthdayToday = (b) => {
   const m = /(\d{2})-(\d{2})$/.exec(String(b || ""));
@@ -39,6 +40,7 @@ export default function ContactDetail() {
   const [actionError, setActionError] = useState("");
   const [newCompany, setNewCompany] = useState(false);
   const [newDeal, setNewDeal] = useState(false);
+  const [whatsApp, setWhatsApp] = useState(false);
   const memberships = useMemberships("contact", id);
   useTagCatalogue();
 
@@ -91,6 +93,7 @@ export default function ContactDetail() {
       </>}
       actions={canWrite && contact && <>
         {!contact.isArchived && <button type="button" className="btn primary" onClick={() => setNewDeal(true)}>New deal</button>}
+        {(contact.whatsapp || contact.phone) && <button type="button" className="btn ghost" onClick={() => setWhatsApp(true)}>WhatsApp</button>}
         <button type="button" className="btn ghost" onClick={() => setNewCompany(true)}>New company</button>
         {!contact.isArchived && <button type="button" className="btn ghost" onClick={archive}>Archive</button>}
         <button type="button" className="btn ghost" onClick={remove}>Delete</button>
@@ -136,6 +139,7 @@ export default function ContactDetail() {
         </Card>
       </>}
       {newDeal && <NewDealModal contact={contact} onClose={() => setNewDeal(false)} onCreated={(d) => { setNewDeal(false); navigate(recordHref.deal(d._id)); }} />}
+      {whatsApp && <WhatsAppSendModal contact={contact} onClose={() => setWhatsApp(false)} />}
       {newCompany && <NewCompanyModal
         onClose={() => setNewCompany(false)}
         onCreated={async (co) => { await save({ companyId: co._id }); setNewCompany(false); await load(); }} />}

@@ -38,6 +38,7 @@ const BUILT_IN = [
       ["email_lead", "Email lead", "First contact was an email to the shared inbox."],
       ["whatsapp_lead", "WhatsApp lead", "First contact was a WhatsApp message."],
       ["form_submission", "Form submission", "Sent one of the CRM forms embedded on a website."],
+      ["eventbrite", "Eventbrite", "Signed up for a Banyan event on Eventbrite."],
       ["test_booking", "Test booking", "Made a booking paid in Stripe test mode (not real revenue)."],
       ["newsletter", "Newsletter", "Signed up for the newsletter (also added to Flodesk)."],
       ["walk_in", "Walk-in", "Filled in the walk-in form at reception."],

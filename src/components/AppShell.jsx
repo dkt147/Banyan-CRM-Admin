@@ -21,6 +21,7 @@ const PRIMARY_NAV = [
   { key: "calendar", label: "Bookings and Calendar", icon: "CalendarDots", match: ["calendar", "bookings", "room-bookings"] },
   { key: "automation", label: "Automations", icon: "FlowArrow", match: ["automation"] },
   { key: "forms", label: "Forms", icon: "ClipboardText", match: ["forms"] },
+  { key: "events", label: "Events", icon: "Ticket", match: ["events"] },
   { key: "reports", label: "Reports", icon: "ChartBar", match: ["reports"] },
   { key: "settings", label: "Settings", icon: "Gear", match: ["settings", "workspace", "integrations", "audit-logs"] },
 ];

@@ -697,3 +697,22 @@
 .ts-archived { margin: 0 0 12px; }
 .ts-actions { white-space: nowrap; }
 .ts-group tr.is-inactive td { color: var(--color-text-secondary); }
+
+/* 27 Nov round 2: events, integration cards, WhatsApp send, stage follow-up */
+.ev-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.ev-search { display: flex; gap: 8px; }
+.ev-search input { min-width: 220px; }
+.ev-pager { display: flex; gap: 12px; align-items: center; justify-content: flex-end; margin-top: 12px; }
+.ev-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.ev-stats > div { background: var(--surface, #fff); border: 1px solid var(--line, #e5e7eb); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.ev-stats span { font-size: 12px; color: var(--muted, #6b7280); }
+.ev-stats b { font-size: 20px; }
+.ev-st-checked_in { color: #15803d; }
+.ev-st-cancelled, .ev-st-refunded, .ev-st-not_attending { color: #b45309; }
+.ic-actions { display: flex; gap: 8px; }
+.ic-facts { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.wa-send textarea { width: 100%; }
+.wa-preview { margin: 0; padding: 10px 12px; border-left: 3px solid #25d366; background: rgba(37, 211, 102, .08); border-radius: 6px; white-space: pre-wrap; }
+.pipeline-followup { border: 1px solid var(--line, #e5e7eb); border-radius: 10px; padding: 10px 12px; margin-top: 12px; display: grid; gap: 8px; }
+.pipeline-followup legend { padding: 0 6px; font-weight: 600; }
+@media (max-width: 640px) { .ev-search input { min-width: 0; flex: 1; } .ev-search { width: 100%; } }

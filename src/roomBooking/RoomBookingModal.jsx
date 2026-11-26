@@ -352,7 +352,7 @@ function BookingDialog({ config: C, initial, onClose, onBooked }) {
         <button type="button" className="bnrb-btn bnrb-btn-ghost bnrb-back" onClick={() => setStep(1)}>Back</button>
         <div className="bnrb-summary"><span>Total</span><span className="bnrb-total">{payWith === "credits" ? `${hours} credit${hours === 1 ? "" : "s"}` : money(r.price * hours)}</span></div>
         <button type="button" className="bnrb-btn bnrb-pay" onClick={submit} disabled={submitting}>
-          {submitting ? <><i className="bnrb-spin" aria-hidden="true" /> {payWith === "credits" ? "Booking…" : "Redirecting to secure payment…"}</> : payWith === "credits" ? "Book with credits" : "Continue to payment"}
+          {submitting ? <><i className="bnrb-spin" aria-hidden="true" /> {payWith === "credits" ? "Booking…" : "Creating the payment link…"}</> : payWith === "credits" ? "Book with credits" : "Create payment link"}
         </button>
       </>}>
         <div className="bnrb-recap">

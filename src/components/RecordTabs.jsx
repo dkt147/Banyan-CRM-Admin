@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { RelatedSection, TimelineItem, isChangeItem, isNoteItem } from "./RelatedRecords";
 import RecordNotes from "./RecordNotes";
 import RecordInvoices, { useRecordInvoices } from "./RecordInvoices";
+import RecordEvents, { useRecordEvents } from "./RecordEvents";
 import { recordHref } from "../utils/recordLinks";
 
 // Contact, company and deal pages: activity, notes, emails, invoices… as tabs in the main
@@ -36,6 +37,7 @@ function ActivityFeed({ related }) {
 
 export default function RecordTabs({ type, id, related, legacyNotes, showLinks }) {
   const invoices = useRecordInvoices(type, id);
+  const events = useRecordEvents(type, id);
   const [tab, setTabState] = useState(readTab);
   const setTab = (t) => { setTabState(t); keepTab(t); };
   const count = (key) => (related.data ? related.data.sections?.[key]?.total ?? 0 : null);
@@ -49,6 +51,7 @@ export default function RecordTabs({ type, id, related, legacyNotes, showLinks }
     type !== "deal" && ["deals", "Deals", count("deals")],
     ["bookings", "Bookings", count("bookings")],
     ["invoices", "Invoices", invoices.loading ? null : invoices.total],
+    type !== "deal" && ["events", "Events", events.loading ? null : events.total],
     ["files", "Files", count("files")],
   ].filter(Boolean);
   const active = tabs.some(([k]) => k === tab) ? tab : "activity";
@@ -79,6 +82,7 @@ export default function RecordTabs({ type, id, related, legacyNotes, showLinks }
         {active === "activity" && <ActivityFeed related={related} />}
         {active === "notes" && <RecordNotes type={type} id={id} legacy={legacyNotes} onChanged={related.reload} />}
         {active === "invoices" && <RecordInvoices state={invoices} />}
+        {active === "events" && <RecordEvents state={events} forCompany={type === "company"} />}
         {["emails", "whatsapp", "tasks", "deals", "bookings", "files"].includes(active) && <RelatedSection tab={active === "bookings" ? "bookings" : active} related={related} />}
         {active === "emails" && <p className="lk-muted rt-hint">Emails sent and received through the shared inbox. Open one to reply from the Inbox.</p>}
         {active === "whatsapp" && <p className="lk-muted rt-hint">WhatsApp conversations with this {type}. Open one to reply from the Inbox.</p>}
