@@ -4,7 +4,7 @@ import Badge from "../components/Badge";
 import Modal from "../components/Modal";
 import { useAuth } from "../auth/AuthContext";
 import FlodeskStatus from "../components/FlodeskStatus";
-import { EventbriteStatus, WhatsAppStatus } from "../components/IntegrationStatusCards";
+import { EventbriteStatus, GmailDeliveryCheck, WhatsAppStatus } from "../components/IntegrationStatusCards";
 import { GOOGLE_POPUP_HINT, clearGoogleOAuthParams, listenForGoogleOAuth, openGoogleOAuth, readGoogleOAuthReturn } from "../utils/googleOAuth";
 const providers = [
   "gmail",
@@ -160,6 +160,7 @@ export default function Integrations() {
       {notice && <div className="notice"><b>Google</b><span>{notice}</span></div>}
       <FlodeskStatus />
       <WhatsAppStatus />
+      <GmailDeliveryCheck />
       <EventbriteStatus />
       <section className="panel table-wrap">
         <table>

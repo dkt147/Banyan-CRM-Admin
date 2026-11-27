@@ -120,3 +120,51 @@ export function WhatsAppStatus() {
     </section>
   );
 }
+
+/** Read-only Gmail delivery check (report 27 Nov, F1). Admin only; GET calls to Gmail, no tokens returned.
+ *  GET /integrations/google/gmail/diagnostics?ids=&days= → { account, sendAs[], messages[], bounces{items[]} } */
+export function GmailDeliveryCheck() {
+  const { request } = useAuth();
+  const isAdmin = usePermissions().can("workspace.manage");
+  const [ids, setIds] = useState("1a21a630a8093e65");
+  const [days, setDays] = useState("7");
+  const [state, setState] = useState({ busy: false, data: null, error: "" });
+  const [copied, setCopied] = useState(false);
+  if (!isAdmin) return null;
+
+  async function run() {
+    setState({ busy: true, data: null, error: "" }); setCopied(false);
+    try {
+      const r = await request("/integrations/google/gmail/diagnostics", { query: { ids: ids.replace(/\s+/g, ""), days } });
+      setState({ busy: false, data: r.data || {}, error: "" });
+    } catch (e) {
+      setState({ busy: false, data: null, error: e.status === 404 ? "The Gmail check needs the latest server update." : e.message || "The check failed." });
+    }
+  }
+  async function copy() {
+    try { await navigator.clipboard.writeText(JSON.stringify(state.data, null, 2)); setCopied(true); } catch { setCopied(false); }
+  }
+
+  const d = state.data;
+  const bounces = d?.bounces?.items || [];
+  return (
+    <section className="panel rp-card fd-status" aria-labelledby="gd-title">
+      <div className="rp-bd-head"><h3 id="gd-title">Gmail delivery check</h3></div>
+      <p className="lk-muted">Looks up sent emails in the info@ mailbox and lists any bounces. Read only: nothing is sent or changed.</p>
+      <div className="ic-actions">
+        <label>Gmail message IDs (comma-separated)<input value={ids} onChange={(e) => setIds(e.target.value)} /></label>
+        <label>Bounces from the last (days)<input type="number" min="1" max="30" value={days} onChange={(e) => setDays(e.target.value)} /></label>
+        <button type="button" className="btn ghost small" onClick={run} disabled={state.busy}>{state.busy ? "Checking…" : "Check"}</button>
+      </div>
+      {state.error && <p className="lk-warn-text">{state.error}</p>}
+      {d && <>
+        <ul className="ic-facts">
+          <li>Signed in as <b>{d.account?.signedIn || "?"}</b>, sending as <b>{d.account?.configuredFrom || "?"}</b>{d.account?.fromIsSignedInAccount ? " (same account)" : d.account?.fromIsVerifiedAlias ? " (verified alias)" : <span className="lk-warn-text"> (not the signed-in account or a verified alias)</span>}.</li>
+          {(d.messages || []).map((m) => <li key={m.id}>{m.id}: {m.error ? <span className="lk-warn-text">{m.error}</span> : <>{m.hasSentLabel ? "in Sent" : <span className="lk-warn-text">not in Sent</span>} · to {m.headers?.To || m.to || "?"} · {m.headers?.Subject || m.subject || ""}</>}</li>)}
+          <li>Bounces: <b>{bounces.length}</b>{bounces.map((b, i) => <span key={i}><br />{b.date} · {b.subject} · {b.snippet}</span>)}</li>
+        </ul>
+        <button type="button" className="btn ghost small" onClick={copy}>{copied ? "Copied" : "Copy result"}</button>
+      </>}
+    </section>
+  );
+}
