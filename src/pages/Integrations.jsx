@@ -30,6 +30,7 @@ export default function Integrations() {
     [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [connectingGoogle, setConnectingGoogle] = useState(false);
+  const [connectingXero, setConnectingXero] = useState(false);
   async function load() {
     try {
       const r = await request("/integrations", { query: { limit: 100 } });
@@ -71,6 +72,29 @@ export default function Integrations() {
       setConnectingGoogle(false);
       setError(e.message || "Could not start Google authorization.");
     }
+  }
+  // Xero (report 27 Nov: invoices couldn't sync because there was no way to connect Xero).
+  // GET /integrations/xero/connect → { authorizationUrl }. Xero's own page then says whether it worked;
+  // this page re-checks when the person comes back to it.
+  async function connectXero() {
+    const popup = window.open("about:blank", "banyan-xero-oauth", "popup,width=620,height=760,resizable=yes,scrollbars=yes");
+    setConnectingXero(true); setError(""); setNotice("");
+    try {
+      const r = await request("/integrations/xero/connect");
+      const url = r.data?.authorizationUrl;
+      if (!url) throw new Error("The server did not return a Xero sign-in link.");
+      if (popup && !popup.closed) {
+        popup.location.href = url;
+        setNotice("Xero sign-in opened in a new window. Sign in with the Xero account that owns Banyan's books and choose the organisation. When it says connected, close that window.");
+        const onFocus = () => { if (popup.closed) { window.removeEventListener("focus", onFocus); load(); } };
+        window.addEventListener("focus", onFocus);
+      } else {
+        window.location.assign(url);
+      }
+    } catch (e) {
+      if (popup && !popup.closed) popup.close();
+      setError(e.status === 404 ? "Connecting Xero needs the latest server update." : e.message || "Could not start the Xero sign-in.");
+    } finally { setConnectingXero(false); }
   }
   function open(i) {
     setForm(
@@ -122,6 +146,9 @@ export default function Integrations() {
         <>
           <button className="btn ghost" onClick={connectGoogle} disabled={connectingGoogle}>
             {connectingGoogle ? "Opening Google…" : "Connect Google Workspace + Calendar"}
+          </button>
+          <button className="btn ghost" onClick={connectXero} disabled={connectingXero}>
+            {connectingXero ? "Opening Xero…" : rows.some((i) => i.provider === "xero" && i.status === "connected") ? "Reconnect Xero" : "Connect Xero"}
           </button>
           <button className="btn primary" onClick={() => open()}>
             Add connection

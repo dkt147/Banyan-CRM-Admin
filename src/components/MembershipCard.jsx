@@ -36,7 +36,7 @@ export default function MembershipCard({ state, forCompany = false, onAdd }) {
   const past = items.filter((m) => !LIVE.includes(m.status));
   if (loading) return null;
   return (
-    <Card title={forCompany ? "Memberships" : "Membership"} actions={<>{onAdd && <button type="button" className="av-link" onClick={onAdd}>Add membership</button>}{onAdd && " · "}<Link className="av-link" to="/memberships">All memberships</Link></>}>
+    <Card title={forCompany ? "Memberships" : "Membership"} actions={<span className="dl-card-actions ms-card-links">{onAdd && <button type="button" className="av-link" onClick={onAdd}>Add membership</button>}<Link className="av-link" to="/memberships">All memberships</Link></span>}>
       {error && <p className="lk-warn-text">{error}</p>}
       {!current.length && <p className="lk-muted">{past.length ? `Not a member now. Last membership: ${planName(past[0])} (${STATUS[past[0].status] || past[0].status}${past[0].endAt ? `, ended ${day(past[0].endAt)}` : ""}).` : forCompany ? "No memberships for this company." : "Not a member."}</p>}
       {current.map((m) => (

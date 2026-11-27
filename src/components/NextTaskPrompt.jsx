@@ -16,8 +16,9 @@ function defaultDue() {
  * Shown after a task is completed: offers the next task, linked to the same contact,
  * company and deal. Optional — "No next task" closes it.
  * props: task (the completed task, populated), links ({ deal, contact, company }), onDone(createdTask|null)
+ * Also shown on the deal page after a stage move (27 Nov decision): heading + task = { assignedTo: owner }.
  */
-export default function NextTaskPrompt({ task, links, onDone }) {
+export default function NextTaskPrompt({ task, links, onDone, heading, onDealPage = false }) {
   const { request } = useAuth();
   const [form, setForm] = useState({ title: "", dueAt: defaultDue(), priority: task.priority || "medium" });
   const [saving, setSaving] = useState(false);
@@ -51,7 +52,7 @@ export default function NextTaskPrompt({ task, links, onDone }) {
       <p>"{created.title || form.title}" is due {new Date(created.dueAt || fromHkInput(form.dueAt)).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}.</p>
       <div className="next-task-actions">
         {created._id && <Link className="btn ghost" to={recordHref.task(created._id)}>Open it</Link>}
-        {links.deal && <Link className="btn ghost" to={recordHref.deal(links.deal._id)}>Go to the deal</Link>}
+        {links.deal && !onDealPage && <Link className="btn ghost" to={recordHref.deal(links.deal._id)}>Go to the deal</Link>}
         <button type="button" className="btn ghost" onClick={() => onDone(created)}>Close</button>
       </div>
     </section>
@@ -60,8 +61,8 @@ export default function NextTaskPrompt({ task, links, onDone }) {
   const linkedTo = [links.deal && `deal "${links.deal.title}"`, links.contact && "the same contact", links.company && "company"].filter(Boolean);
   return (
     <section className="dl-card next-task" aria-label="Create the next task">
-      <h3 className="dl-card-title">Task completed. What's next?</h3>
-      <p className="lk-muted">Create the follow-up now{linkedTo.length ? `, linked to ${linkedTo.join(", ")}` : ""}.{links.deal ? " Or move the deal to its next stage from the deal page instead." : ""}</p>
+      <h3 className="dl-card-title">{heading || "Task completed. What's next?"}</h3>
+      <p className="lk-muted">Create the follow-up now{linkedTo.length ? `, linked to ${linkedTo.join(", ")}` : ""}.{links.deal && !onDealPage ? " Or move the deal to its next stage from the deal page instead." : ""}</p>
       <form className="next-task-form" onSubmit={create}>
         <label className="next-task-title">Next task
           <input autoFocus value={form.title} disabled={saving} placeholder="e.g. Call to confirm the viewing"
@@ -77,7 +78,7 @@ export default function NextTaskPrompt({ task, links, onDone }) {
         </label>
         <div className="next-task-actions">
           <button type="submit" className="btn primary" disabled={saving}>{saving ? "Creating…" : "Create next task"}</button>
-          {links.deal && <Link className="btn ghost" to={recordHref.deal(links.deal._id)}>Update the deal stage</Link>}
+          {links.deal && !onDealPage && <Link className="btn ghost" to={recordHref.deal(links.deal._id)}>Update the deal stage</Link>}
           <button type="button" className="btn ghost" disabled={saving} onClick={() => onDone(null)}>No next task</button>
         </div>
       </form>

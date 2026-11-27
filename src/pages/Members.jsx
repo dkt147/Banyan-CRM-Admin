@@ -358,6 +358,21 @@ export default function Members() {
    * ---------------------------------------------------------
    */
 
+  // Report 27 Nov: inactive users had no way back. PATCH /members/:id { isActive: true }.
+  async function reactivateMember(member) {
+    if (!member?._id || !window.confirm(`Reactivate "${member.name}"? They can sign in again with their existing password.`)) return;
+    try {
+      setDeletingId(member._id);
+      setError("");
+      await request(`/members/${member._id}`, { method: "PATCH", body: { isActive: true } });
+      await load();
+    } catch (e) {
+      setError(getErrorMessage(e));
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   async function deactivateMember(member) {
     if (!member?._id) return;
 
@@ -526,7 +541,13 @@ export default function Members() {
                         </button>
                       )}
 
-                      {canDeleteMembers && member._id !== user?._id && (
+                      {canDeleteMembers && member._id !== user?._id && !member.isActive && (
+                        <button className="btn ghost" type="button" disabled={deletingId === member._id} onClick={() => reactivateMember(member)}>
+                          {deletingId === member._id ? "Reactivating..." : "Reactivate"}
+                        </button>
+                      )}
+
+                      {canDeleteMembers && member._id !== user?._id && member.isActive && (
                         <button
                           className="btn ghost"
                           type="button"

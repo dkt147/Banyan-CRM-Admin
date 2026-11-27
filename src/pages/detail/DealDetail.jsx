@@ -9,6 +9,7 @@ import { invalidateLookups, personLabel, useLookups } from "../../utils/useLooku
 import { fromHkInput } from "../../utils/hkTime";
 import NewCompanyModal from "../../components/NewCompanyModal";
 import MembershipModal from "../../components/MembershipModal";
+import NextTaskPrompt from "../../components/NextTaskPrompt";
 
 // Pipelines whose won deals are memberships: offer to add the membership straight away.
 const MEMBERSHIP_PIPELINES = ["membership", "private-office", "virtual-office"];
@@ -38,6 +39,8 @@ export default function DealDetail() {
   const [closing, setClosing] = useState(null);       // { status: "won"|"lost", paid, reason, busy, error }
   const [wonMembership, setWonMembership] = useState(false);
   const [membershipAdded, setMembershipAdded] = useState(false);
+  // After a stage move: "What's next?" unless that stage makes its own follow-up task.
+  const [askNext, setAskNext] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -68,7 +71,7 @@ export default function DealDetail() {
   async function goToStage(stage) {
     if (!stage || stage._id === deal?.stageId?._id) return;
     setStepping(stage._id); setActionError("");
-    try { await patch({ pipelineId: dealPipelineId, stageId: stage._id }); }
+    try { await patch({ pipelineId: dealPipelineId, stageId: stage._id }); promptNext(stage); }
     catch (e) { setActionError(e.message); }
     finally { setStepping(""); }
   }
@@ -84,6 +87,10 @@ export default function DealDetail() {
       if (closing.status === "won" && MEMBERSHIP_PIPELINES.includes(deal?.pipelineId?.key) && deal?.contactId) setWonMembership(true);
       setClosing(null);
     } catch (err) { setClosing((c) => ({ ...c, busy: false, error: err.message })); }
+  }
+  function promptNext(stage) {
+    if (!stage || stage.isClosedWon || stage.isClosedLost || stage.followUp?.enabled) { setAskNext(null); return; }
+    setAskNext({ stage, key: `${stage._id}-${Date.now()}` });
   }
   async function reopen() {
     setActionError("");
@@ -113,7 +120,7 @@ export default function DealDetail() {
     const stageId = move.stageId || move.stages[0]?._id;
     if (!stageId) return;
     setMove((m) => ({ ...m, saving: true })); setActionError("");
-    try { await patch({ pipelineId, stageId }); setMove({ pipelineId: "", stageId: "", stages: move.stages, saving: false }); }
+    try { await patch({ pipelineId, stageId }); promptNext(move.stages.find((s) => s._id === stageId)); setMove({ pipelineId: "", stageId: "", stages: move.stages, saving: false }); }
     catch (e) { setActionError(e.message); setMove((m) => ({ ...m, saving: false })); }
   }
   async function remove() {
@@ -192,6 +199,11 @@ export default function DealDetail() {
           </section>
         );
       })()}
+      {askNext && deal && canWrite && (
+        <NextTaskPrompt key={askNext.key} onDealPage heading={`Moved to ${askNext.stage.name}. What's next?`}
+          task={{ priority: "medium", assignedTo: deal.ownerId?._id || deal.ownerId }}
+          links={{ deal, contact, company }} onDone={() => setAskNext(null)} />
+      )}
       {wonMembership && contact && (
         <MembershipModal contact={contact} company={company} deal={deal}
           onClose={() => setWonMembership(false)}

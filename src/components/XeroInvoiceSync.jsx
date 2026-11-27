@@ -30,7 +30,7 @@ export default function XeroInvoiceSync({ onDone }) {
       setMsg(`Synced from Xero: ${summary(r.data)}.`);
       load(); onDone?.();
     } catch (e) {
-      setMsg(e.status === 404 ? "Syncing from Xero needs the latest server update." : e.message || "The Xero sync failed.");
+      setMsg(e.status === 404 ? "Syncing from Xero needs the latest server update." : (e.payload?.code || e.payload?.error?.code) === "INTEGRATION_NOT_CONNECTED" ? "Xero isn't connected yet. An admin can connect it in Settings → Integrations (Connect Xero)." : e.message || "The Xero sync failed.");
     } finally { setBusy(false); }
   }
 

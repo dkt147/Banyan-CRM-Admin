@@ -74,6 +74,8 @@ export default function RecordNotes({ type, id, legacy, onChanged }) {
     finally { setBusy(false); }
   }
 
+  // 37 contacts only had the inbound-email auto-text in the old field (report 27 Nov); don't show it as a note.
+  const earlier = String(legacy?.text || "").replace(/^\s*Contact created automatically from an inbound email\.?\s*/i, "").trim();
   if (state.missing) return <LegacyNotes legacy={legacy} canWrite={canWrite} />;
 
   const mine = (n) => user?.role === "admin" || String(n.userId?._id || n.userId) === String(user?._id);
@@ -94,7 +96,7 @@ export default function RecordNotes({ type, id, legacy, onChanged }) {
       {error && <p className="lk-warn-text">{error}</p>}
       {state.error && <p className="rr-empty rr-error">{state.error}</p>}
       {state.loading ? <p className="rr-empty">Loading notes…</p>
-        : !state.items.length && !legacy?.text ? <p className="rr-empty">No notes yet.</p>
+        : !state.items.length && !earlier ? <p className="rr-empty">No notes yet.</p>
           : (
             <ul className="nt-list">
               {state.items.map((n) => {
@@ -126,10 +128,10 @@ export default function RecordNotes({ type, id, legacy, onChanged }) {
                   </li>
                 );
               })}
-              {legacy?.text && (
+              {earlier && (
                 <li className="nt-item nt-legacy">
                   <div className="nt-meta"><b>Earlier notes</b><time>from the old Notes field</time></div>
-                  <p className="nt-body">{legacy.text}</p>
+                  <p className="nt-body">{earlier}</p>
                 </li>
               )}
             </ul>

@@ -565,6 +565,23 @@ function getItems(response) {
 
 
 
+// Report 27 Nov (F3): editing saved seats 0 and a renewal before the start with no message.
+function membershipFormProblem(form) {
+  const seats = Number(form.seats);
+  if (!Number.isInteger(seats) || seats < 1 || seats > 500) return "Seats must be a whole number from 1 to 500.";
+  const monthly = form.monthlyValue === "" || form.monthlyValue == null ? 0 : Number(form.monthlyValue);
+  if (Number.isNaN(monthly) || monthly < 0) return "The monthly value must be 0 or more.";
+  const start = form.startAt ? new Date(form.startAt).getTime() : NaN;
+  const renew = form.renewalAt ? new Date(form.renewalAt).getTime() : NaN;
+  if (!Number.isNaN(start) && !Number.isNaN(renew) && renew < start) return "The renewal date can't be before the start date.";
+  const end = form.endAt ? new Date(form.endAt).getTime() : NaN;
+  if (!Number.isNaN(start) && !Number.isNaN(end) && end < start) return "The end date can't be before the start date.";
+  return "";
+}
+
+// Stats count memberships that are running now, not cancelled or ended ones (report 27 Nov, F5).
+const LIVE_MEMBERSHIP = ["active", "trial", "paused"];
+
 export default function Membership() {
 
 
@@ -1877,11 +1894,12 @@ export default function Membership() {
 
 
 
-      if (!membershipForm.memberCode.trim()) {
+      const formProblem = membershipFormProblem(membershipForm);
+      if (formProblem) {
 
 
 
-        setError("Member code is required.");
+        setError(formProblem);
 
 
 
@@ -2027,6 +2045,11 @@ export default function Membership() {
 
 
       setError("");
+      const formProblem = membershipFormProblem(membershipForm);
+      if (formProblem) {
+        setError(formProblem);
+        return;
+      }
 
 
 
@@ -2733,7 +2756,7 @@ export default function Membership() {
 
 
 
-  const totalMonthlyValue = memberships.reduce(
+  const totalMonthlyValue = memberships.filter((x) => LIVE_MEMBERSHIP.includes(x.status)).reduce(
 
 
 
@@ -2969,23 +2992,7 @@ export default function Membership() {
 
 
 
-          value={
-
-
-
-            membershipPagination.total
-
-
-
-              ? membershipPagination.total
-
-
-
-              : memberships.length
-
-
-
-          }
+          value={memberships.filter((x) => LIVE_MEMBERSHIP.includes(x.status)).length}
 
 
 
@@ -6257,7 +6264,8 @@ export default function Membership() {
 
 
 
-          <div className="form-grid">
+          {error && <div className="notice error" role="alert"><b>Membership</b><span>{error}</span></div>}
+          <div className="form-grid">
 
 
 
@@ -6475,7 +6483,7 @@ export default function Membership() {
 
 
 
-              Member code *
+              Member code (optional)
 
 
 

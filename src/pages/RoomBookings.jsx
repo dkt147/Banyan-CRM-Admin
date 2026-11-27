@@ -16,7 +16,12 @@ import { FALLBACK_CONFIG, amountText, channelText, customerName, isCreditBooking
 /** "Synced 1 min ago" from GET /room-bookings/config lastSync, or the last sync error. */
 export function SyncStatus({ config }) {
   const s = config?.lastSync;
-  if (!s?.at) return null;
+  // 27 Nov: the server's 2-minute sync was found switched off (BANYAN_BOOKING_SYNC_MINUTES=0),
+  // so new website bookings only arrived when someone opened this page.
+  const autoOff = config?.syncConfigured && Number(config?.syncIntervalMinutes) === 0;
+  const offNote = autoOff ? <div className="notice rb-sync-warning"><b>Automatic WordPress sync is off</b><span>The server only checks WordPress when this page is opened, so new website bookings and payments can show late elsewhere (calendar, contacts). Set BANYAN_BOOKING_SYNC_MINUTES to 2 on Render.</span></div> : null;
+  if (!s?.at) return offNote;
+  if (offNote && !s.error) return <>{offNote}<p className="lk-muted rb-sync-status">Synced from WordPress {timeAgo(s.at)}</p></>;
   if (s.error) return <div className="notice error rb-sync-warning"><b>WordPress sync failed {timeAgo(s.at)}</b><span>{s.error}</span></div>;
   const counts = [s.created && `${s.created} new`, s.updated && `${s.updated} updated`].filter(Boolean).join(", ");
   return (

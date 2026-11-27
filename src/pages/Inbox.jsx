@@ -6,6 +6,15 @@ import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { GOOGLE_POPUP_HINT, listenForGoogleOAuth, openGoogleOAuth } from "../utils/googleOAuth";
 
+// Gmail bodies can carry HTML entities (e.g. "&nbsp;" in Eventbrite emails, report 27 Nov).
+function plainText(v) {
+  if (!v) return "";
+  if (!/&[#a-z0-9]+;/i.test(v)) return v;
+  const el = document.createElement("textarea");
+  el.innerHTML = v;
+  return el.value.replace(/ /g, " ");
+}
+
 function itemArray(response) {
   const data = response?.data;
   if (Array.isArray(data)) return data;
@@ -218,7 +227,7 @@ export default function Inbox() {
       }
     >
       {error && <div className="notice error"><b>Inbox</b><span>{error}</span></div>}
-      {notice && <div className="notice"><b>Google integration</b><span>{notice}</span></div>}
+      {notice && <div className="notice green" role="status"><b>Google integration</b><span>{notice}</span></div>}
       <div className="contact-grid inbox-grid">
         <section className="panel contact-list">
           {threads.length === 0 ? <Empty text={gmailConnected ? "No conversations yet. Sync Gmail to import recent messages." : "No conversations. Connect Google to import Gmail messages, or continue using existing WhatsApp conversations."} /> : threads.map((thread) => (
@@ -254,7 +263,7 @@ export default function Inbox() {
             <div className="timeline message-thread">
               {messages.map((message) => <p key={message._id || message.metadata?.gmailMessageId}>
                 <b>{message.senderName || message.senderAddress || message.direction}</b>
-                <span>{message.body}</span>
+                <span>{plainText(message.body)}</span>
                 <small>{new Date(message.sentAt).toLocaleString()} · {message.status || message.direction}</small>
               </p>)}
             </div>

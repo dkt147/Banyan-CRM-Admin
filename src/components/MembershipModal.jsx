@@ -54,7 +54,7 @@ export default function MembershipModal({ contact, company, deal, onClose, onCre
       .catch((e) => alive && (setPlans([]), setError(e.message || "Could not load the plans.")));
     if (!contact && company?._id) {
       request("/contacts", { query: { companyId: company._id, limit: 100, page: 1 } })
-        .then((r) => alive && setPeople(r.data?.items || []))
+        .then((r) => alive && setPeople(Array.isArray(r.data) ? r.data : r.data?.items || []))
         .catch(() => alive && setPeople([]));
     }
     return () => { alive = false; };

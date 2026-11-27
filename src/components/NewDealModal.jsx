@@ -101,7 +101,7 @@ export default function NewDealModal({ contact = null, contacts = null, company 
             {stages.map((s) => <option key={s._id} value={s._id}>{s.name}</option>)}
           </select>
         </label>
-        <label>Value (HK$)<input type="number" min={0} step={100} value={v.value} disabled={busy} placeholder="0" onChange={(e) => setV({ ...v, value: e.target.value })} /></label>
+        <label>Value (HK$)<input type="number" min={0} step="any" value={v.value} disabled={busy} placeholder="0" onChange={(e) => setV({ ...v, value: e.target.value })} /></label>
         <label>Product
           <select value={v.productType} disabled={busy} onChange={(e) => setV({ ...v, productType: e.target.value })}>
             {PRODUCT_TYPES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}

@@ -40,7 +40,7 @@ export function EventbriteStatus() {
       const s = r.data?.lastSync || r.data || {};
       setMsg(`Synced ${s.events ?? 0} events and ${s.registrations ?? 0} sign-ups: ${s.contactsCreated ?? 0} new contacts, ${s.contactsUpdated ?? 0} updated.`);
       await load();
-    } catch (e) { setMsg(e.message || "The sync failed."); }
+    } catch (e) { setMsg((e.payload?.code || e.payload?.error?.code) === "SYNC_RUNNING" ? "A sync is already running. Check again in a minute." : e.message || "The sync failed."); }
     finally { setSyncing(false); }
   }
 
@@ -51,7 +51,7 @@ export function EventbriteStatus() {
       <div className="rp-bd-head">
         <h3 id="eb-title">Eventbrite (events)</h3>
         <div className="ic-actions">
-          {d?.connected && <button type="button" className="btn ghost small" onClick={sync} disabled={syncing}>{syncing ? "Syncing…" : "Sync now"}</button>}
+          {d?.connected && <button type="button" className="btn ghost small" onClick={sync} disabled={syncing || d.syncRunning}>{syncing || d.syncRunning ? "Syncing…" : "Sync now"}</button>}
           <button type="button" className="btn ghost small" onClick={load} disabled={state.loading}>{state.loading ? "Checking…" : "Check again"}</button>
         </div>
       </div>
@@ -106,7 +106,7 @@ export function WhatsAppStatus() {
             <li>Approved message templates: <b>{approved.length}</b>. WhatsApp only lets a business start a conversation with a template; free text works for 24 hours after the customer's last message.</li>
           </ul>
         )}
-        {d.error && <p className="lk-warn-text">Meta said: {d.error}</p>}
+        {d.error && <p className="lk-warn-text">{d.configured === false ? d.error : `Meta said: ${d.error}`}</p>}
         {approved.length > 0 && (
           <details>
             <summary>Templates</summary>
