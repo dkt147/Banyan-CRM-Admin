@@ -568,7 +568,7 @@ export default function Members() {
         </table>
 
         {!loading && rows.length === 0 && (
-          <Empty text="No active users found." />
+          <Empty text={statusFilter === "inactive" ? "No inactive users." : statusFilter === "all" ? "No users found." : "No active users found."} />
         )}
       </section>
 

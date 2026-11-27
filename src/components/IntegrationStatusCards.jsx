@@ -159,7 +159,7 @@ export function GmailDeliveryCheck() {
       {state.error && <p className="lk-warn-text">{state.error}</p>}
       {d && <>
         <ul className="ic-facts">
-          <li>Signed in as <b>{d.account?.signedIn || "?"}</b>, sending as <b>{d.account?.configuredFrom || "?"}</b>{d.account?.fromIsSignedInAccount ? " (same account)" : d.account?.fromIsVerifiedAlias ? " (verified alias)" : <span className="lk-warn-text"> (not the signed-in account or a verified alias)</span>}.</li>
+          <li>Signed in as <b>{d.account?.signedIn || "?"}</b>, sending as <b>{d.account?.configuredFrom || "?"}</b>{(d.fromIsSignedInAccount ?? d.account?.fromIsSignedInAccount) ? " (same account)" : (d.fromIsVerifiedAlias ?? d.account?.fromIsVerifiedAlias) ? " (verified alias)" : <span className="lk-warn-text"> (not the signed-in account or a verified alias)</span>}.</li>
           {(d.messages || []).map((m) => <li key={m.id}>{m.id}: {m.error ? <span className="lk-warn-text">{m.error}</span> : <>{m.hasSentLabel ? "in Sent" : <span className="lk-warn-text">not in Sent</span>} · to {m.headers?.To || m.to || "?"} · {m.headers?.Subject || m.subject || ""}</>}</li>)}
           <li>Bounces: <b>{bounces.length}</b>{bounces.map((b, i) => <span key={i}><br />{b.date} · {b.subject} · {b.snippet}</span>)}</li>
         </ul>
